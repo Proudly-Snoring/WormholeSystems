@@ -95,6 +95,25 @@ describe('guessNextAlias (ignoredAlias)', () => {
     });
 });
 
+describe('guessNextAlias (case handling)', () => {
+    it('upper-cases the suggestion even for a lowercase parent alias', () => {
+        expect(guessNextAlias('a', [], { scheme: 'alphabetical' })).toBe('AA');
+        expect(guessNextAlias('foo', [])).toBe('FOO1');
+    });
+
+    it('counts lowercase existing aliases as taken wormhole letters', () => {
+        expect(guessNextAlias('A', ['aa', 'Ab'], { scheme: 'alphabetical' })).toBe('AC');
+    });
+
+    it('counts lowercase existing aliases as taken k-space indexes', () => {
+        expect(guessNextAlias('a', ['ah1'], { scheme: 'alphabetical', targetKind: 'h' })).toBe('AH2');
+    });
+
+    it('counts lowercase existing aliases as taken numeric children', () => {
+        expect(guessNextAlias('foo', ['foo1', 'FOO2'])).toBe('FOO3');
+    });
+});
+
 describe('isIgnoredAlias', () => {
     it('matches the exact, trimmed, case-insensitive alias', () => {
         expect(isIgnoredAlias('HOME', 'HOME')).toBe(true);
