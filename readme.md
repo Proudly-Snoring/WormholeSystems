@@ -8,6 +8,12 @@
 
 Wormhole mapping and tracking for EVE Online — live at [wormhole.systems](https://wormhole.systems). Real-time chain maps, signatures, character tracking and killmail intel, built with Laravel 12, Inertia.js, Vue 3 and Tailwind CSS.
 
+## Acknowledgement
+
+This repo is a fork of [WormholeSystems/WormholeSystems](https://github.com/WormholeSystems/WormholeSystems) made by [Nicolas Kion ](https://github.com/NicolasKion) and adepted for Proudly Snoring usage.
+
+We try to maintain compatibility with the base repo and merge our improvement there, but there are subtle differences here and there.
+
 ## Self-hosting
 
 To run your own instance you don't need this repository directly — use the [container stack](https://github.com/WormholeSystems/wormholesystems-containers) with its interactive setup wizard:

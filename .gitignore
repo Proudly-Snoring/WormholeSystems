@@ -43,3 +43,6 @@ frankenphp-worker.php
 /.cursor/
 /.junie/
 tests/Browser/Screenshots/
+
+# Local files
+.local
