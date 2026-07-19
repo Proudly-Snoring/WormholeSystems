@@ -56,12 +56,13 @@ function letterAtIndex(index: number): string {
  * letters. Only aliases that are exactly one letter longer than `prefix`
  * count as direct children, so k-space exits (`AH1`) and deeper descendants
  * (`ABA`) are naturally excluded.
+ * Expects `prefix` and `aliases` already upper-cased by `guessNextAlias`.
  */
 function nextWormholeLetter(prefix: string, aliases: string[]): string {
     const highest = aliases.reduce((max, alias) => {
         if (alias.length !== prefix.length + 1 || !alias.startsWith(prefix)) return max;
 
-        const index = WORMHOLE_LETTERS.indexOf(alias.slice(prefix.length).toUpperCase());
+        const index = WORMHOLE_LETTERS.indexOf(alias.slice(prefix.length));
         return index === -1 ? max : Math.max(max, index);
     }, -1);
 
@@ -73,6 +74,7 @@ function nextWormholeLetter(prefix: string, aliases: string[]): string {
  * high-sec children of `A`. Each reserved letter keeps its own counter, and
  * the anchored digit match excludes anything branching further off a k-space
  * node (`AH1A` is not counted as an `AH` index).
+ * Expects `prefix` and `aliases` already upper-cased by `guessNextAlias`.
  */
 function nextKspaceIndex(prefix: string, letter: string, aliases: string[]): number {
     const marker = `${prefix}${letter}`;
@@ -114,19 +116,25 @@ function guessNextAlphabeticalAlias(prefix: string, aliases: string[], targetKin
  *
  * Alphabetical (`opts.scheme`): children use letters instead of digits (see
  * `guessNextAlphabeticalAlias`).
+ *
+ * Suggestions are always upper-cased, and existing aliases are matched
+ * case-insensitively, so a hand-typed lowercase alias ("ab", "ah1") still
+ * counts as a taken child and the chain stays visually consistent.
  */
 export function guessNextAlias(parentAlias: string | null | undefined, aliases: string[], opts?: TGuessNextAliasOptions): string {
-    let prefix = (parentAlias ?? '').trim();
+    let prefix = (parentAlias ?? '').trim().toUpperCase();
 
     if (isIgnoredAlias(prefix, opts?.ignoredAlias)) {
         prefix = '';
     }
 
+    const knownAliases = aliases.map((alias) => alias.trim().toUpperCase());
+
     if (opts?.scheme === 'alphabetical') {
-        return guessNextAlphabeticalAlias(prefix, aliases, opts.targetKind);
+        return guessNextAlphabeticalAlias(prefix, knownAliases, opts.targetKind);
     }
 
-    const numericChildren = aliases.filter((alias) => {
+    const numericChildren = knownAliases.filter((alias) => {
         if (alias.length <= prefix.length) return false;
         if (!alias.startsWith(prefix)) return false;
         return /^\d+$/.test(alias.slice(prefix.length));
