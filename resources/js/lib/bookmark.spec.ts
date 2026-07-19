@@ -221,6 +221,11 @@ describe('isReturnBookmark', () => {
         expect(isReturnBookmark('AB', 'A', null)).toBe(false);
     });
 
+    it('is false for a sibling branch whose alias is a non-prefix substring of the opposite alias', () => {
+        expect(isReturnBookmark('B', 'AB', null)).toBe(false);
+        expect(isReturnBookmark('1', '21', null)).toBe(false);
+    });
+
     it('is true when the destination alias is the ignored alias, regardless of the opposite alias', () => {
         expect(isReturnBookmark('HOME', 'AB', 'HOME')).toBe(true);
     });

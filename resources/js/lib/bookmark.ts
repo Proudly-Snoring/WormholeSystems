@@ -69,17 +69,13 @@ export type TBookmarkFormats = {
  * Whether a bookmark naming `destinationAlias` is a return (up-chain / home) bookmark
  * when the connection's other endpoint is aliased `oppositeAlias`. True when the
  * destination is the map's ignored alias (e.g. "HOME"), or when the destination's
- * alias is a substring of the opposite endpoint's alias — the existing alias-prefix
- * convention for "up-chain" (see `StoreTrackingAction::excludeConnectionsToParent`).
+ * alias is a prefix of the opposite endpoint's alias — chain aliases extend their
+ * parent's alias (see `guessNextAlias`), so an ancestor is always a prefix. A
+ * sibling branch (e.g. "B" seen from "AB") is not a prefix and stays forward.
  *
  * `oppositeAlias` is required for either branch: callers that omit it (an
  * unconnected guess, or return detection intentionally turned off) never get the
  * return format, regardless of what the destination is aliased.
- *
- * The substring check is intentionally loose: a contrived alias that happens to be
- * a substring of the opposite endpoint's alias (without being a real chain parent)
- * would be treated as a return. In practice chain aliases are prefixes, so this
- * matches the existing up-chain convention and is not solved here.
  */
 export function isReturnBookmark(
     destinationAlias: string | null | undefined,
@@ -94,7 +90,7 @@ export function isReturnBookmark(
     const destination = (destinationAlias ?? '').trim();
     if (!destination) return false;
 
-    return opposite.toLowerCase().includes(destination.toLowerCase());
+    return opposite.toLowerCase().startsWith(destination.toLowerCase());
 }
 
 /**

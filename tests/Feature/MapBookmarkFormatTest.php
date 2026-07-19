@@ -210,6 +210,16 @@ it('accepts an empty ignored alias, which disables the feature', function () {
     expect($map->fresh()->bookmark_ignored_alias)->toBe('');
 });
 
+it('rejects a non-string ignored alias', function () {
+    $map = Map::factory()->create();
+
+    actingAs(bookmarkFormatUser($map, Permission::Manager))
+        ->put("/maps/{$map->slug}/bookmark-format", ['bookmark_ignored_alias' => ['HOME']])
+        ->assertSessionHasErrors('bookmark_ignored_alias');
+
+    expect($map->fresh()->bookmark_ignored_alias)->toBe(BookmarkToken::DEFAULT_IGNORED_ALIAS);
+});
+
 it('accepts a plain string ignored alias', function () {
     $map = Map::factory()->create();
 

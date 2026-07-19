@@ -42,13 +42,14 @@ final class UpdateMapBookmarkFormatRequest extends FormRequest
     /**
      * The global `ConvertEmptyStringsToNull` middleware turns a submitted empty string into
      * `null` before validation runs, but an empty ignored alias is a valid, meaningful value
-     * (it disables the feature) rather than an absent one. Coerce it back so `string` still
-     * validates and the column (not nullable) never receives `null`.
+     * (it disables the feature) rather than an absent one. Coerce only `null` back to an empty
+     * string so `string` still validates and the column (not nullable) never receives `null`;
+     * any other non-string input is left for the `string` rule to reject.
      */
     protected function prepareForValidation(): void
     {
         if ($this->has('bookmark_ignored_alias')) {
-            $this->merge(['bookmark_ignored_alias' => (string) $this->input('bookmark_ignored_alias')]);
+            $this->merge(['bookmark_ignored_alias' => $this->input('bookmark_ignored_alias') ?? '']);
         }
     }
 
