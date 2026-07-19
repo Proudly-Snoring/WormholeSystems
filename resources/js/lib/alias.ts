@@ -14,7 +14,18 @@ export type TAliasTargetKind = 'wormhole' | 'h' | 'l' | 'n' | 'p';
 type TGuessNextAliasOptions = {
     scheme?: TAliasScheme;
     targetKind?: TAliasTargetKind;
+    ignoredAlias?: string;
 };
+
+/**
+ * Whether `alias` is the map's ignored alias (e.g. "HOME"), case-insensitive and
+ * trimmed. An empty `ignoredAlias` disables the feature, so nothing ever matches.
+ */
+export function isIgnoredAlias(alias: string | null | undefined, ignoredAlias: string | null | undefined): boolean {
+    const trimmedIgnored = (ignoredAlias ?? '').trim();
+    if (!trimmedIgnored) return false;
+    return (alias ?? '').trim().toLowerCase() === trimmedIgnored.toLowerCase();
+}
 
 const KSPACE_ALIAS_TARGET_KINDS: readonly string[] = ['h', 'l', 'n', 'p'];
 
@@ -105,7 +116,11 @@ function guessNextAlphabeticalAlias(prefix: string, aliases: string[], targetKin
  * `guessNextAlphabeticalAlias`).
  */
 export function guessNextAlias(parentAlias: string | null | undefined, aliases: string[], opts?: TGuessNextAliasOptions): string {
-    const prefix = (parentAlias ?? '').trim();
+    let prefix = (parentAlias ?? '').trim();
+
+    if (isIgnoredAlias(prefix, opts?.ignoredAlias)) {
+        prefix = '';
+    }
 
     if (opts?.scheme === 'alphabetical') {
         return guessNextAlphabeticalAlias(prefix, aliases, opts.targetKind);
@@ -143,6 +158,7 @@ export function suggestAlias(params: {
     aliases: string[];
     scheme?: TAliasScheme;
     targetKind?: TAliasTargetKind;
+    ignoredAlias?: string;
 }): string | null {
     const originIsAliased = Boolean(params.parentAlias && params.parentAlias.trim());
 
@@ -150,5 +166,9 @@ export function suggestAlias(params: {
         return null;
     }
 
-    return guessNextAlias(params.parentAlias, params.aliases, { scheme: params.scheme, targetKind: params.targetKind });
+    return guessNextAlias(params.parentAlias, params.aliases, {
+        scheme: params.scheme,
+        targetKind: params.targetKind,
+        ignoredAlias: params.ignoredAlias,
+    });
 }
