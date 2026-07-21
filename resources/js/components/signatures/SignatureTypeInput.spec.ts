@@ -1,9 +1,22 @@
 // @vitest-environment happy-dom
 import SignatureTypeInput from '@/components/signatures/SignatureTypeInput.vue';
 import { flushVirtualizer, stubElementMeasurements } from '@/components/ui/combobox/comboboxTestUtils';
-import type { TSignatureType } from '@/types/models';
+import type { TMapUserSetting, TSignatureType } from '@/types/models';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@inertiajs/vue3', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@inertiajs/vue3')>();
+
+    return {
+        ...actual,
+        usePage: () => ({
+            props: {
+                map_user_settings: { compact_signature_list: false } as unknown as TMapUserSetting,
+            },
+        }),
+    };
+});
 
 const types = Array.from({ length: 60 }, (_, index) => ({
     id: index + 1,
