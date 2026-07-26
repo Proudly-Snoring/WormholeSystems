@@ -1,16 +1,15 @@
 # WormholeSystems
 
-[![tests](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/tests.yml/badge.svg)](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/tests.yml)
-[![linter](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/lint.yml/badge.svg)](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/lint.yml)
-[![License](https://img.shields.io/github/license/WormholeSystems/WormholeSystems)](LICENSE)
-[![Stack](https://img.shields.io/badge/self--host-wormholesystems--containers-blue)](https://github.com/WormholeSystems/wormholesystems-containers)
-[![wsctl](https://img.shields.io/github/v/release/WormholeSystems/wormholesystems-cli?label=wsctl)](https://github.com/WormholeSystems/wormholesystems-cli)
+[![tests](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/tests.yml/badge.svg)](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/tests.yml)
+[![linter](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/lint.yml/badge.svg)](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/lint.yml)
+[![license](https://img.shields.io/github/license/Proudly-Snoring/WormholeSystems)](LICENSE)
 
-Wormhole mapping and tracking for EVE Online — live at [wormhole.systems](https://wormhole.systems). Real-time chain maps, signatures, character tracking and killmail intel, built with Laravel 12, Inertia.js, Vue 3 and Tailwind CSS.
+Wormhole mapping and tracking for EVE Online — live at [wormhole.systems](https://wormhole.systems).
+Real-time chain maps, signatures, character tracking and killmail intel, built with Laravel 12, Inertia.js, Vue 3 and Tailwind CSS.
 
 ## Acknowledgement
 
-This repo is a fork of [WormholeSystems/WormholeSystems](https://github.com/WormholeSystems/WormholeSystems) made by [Nicolas Kion ](https://github.com/NicolasKion) and adepted for Proudly Snoring usage.
+This repository is a fork of [WormholeSystems/WormholeSystems](https://github.com/WormholeSystems/WormholeSystems) made by [Nicolas Kion ](https://github.com/NicolasKion) and adapted for Proudly Snoring usage.
 
 We try to maintain compatibility with the base repo and merge our improvement there, but there are subtle differences here and there.
 
@@ -29,9 +28,6 @@ The rest of this README is about developing the application itself.
 **Requirements:** PHP 8.4+, Composer, MySQL/MariaDB, Redis, Node.js + npm. We strongly recommend [Laravel Herd](https://herd.laravel.com/), which provides all of it pre-configured with automatic HTTPS.
 
 ```bash
-git clone https://github.com/WormholeSystems/WormholeSystems.git
-cd WormholeSystems
-
 cp .env.example .env
 composer install
 npm install
@@ -171,12 +167,7 @@ php artisan discord:listen
 
 ## Contributing
 
-Fork, branch, make your changes, then `php artisan test` and `vendor/bin/pint` before opening a pull request — CI runs both.
-
-## Related repositories
-
-- [wormholesystems-containers](https://github.com/WormholeSystems/wormholesystems-containers) — production docker stack
-- [wormholesystems-cli](https://github.com/WormholeSystems/wormholesystems-cli) — `wsctl` setup and management tool
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
