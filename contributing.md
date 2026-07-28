@@ -7,8 +7,8 @@ The objective is to maintain _pull_ and _push_ capabilities with the upstream re
 ## Branches
 
 We use different types of branches:
-- `development` is the shared code with the **upstream** `development` branch, which is the most up to date branch with latest developments This branch should be in sync with the **upstream** remote.
-- `main` is local to the **origin** repository.  It contains the latest code and is deployable in Proudly Snoring infrastructure. It is **not** shared with WormholeSystems/WormholeSystems as it contains speficic code that should not end up there.
+- `development` is the shared code with the **upstream** `development` branch, which is the most up to date branch with latest developments. This branch should be in sync with the **upstream** remote.
+- `main` is local to the **origin** repository.  It contains the latest code and is deployable in Proudly Snoring infrastructure. It is **not** shared with WormholeSystems/WormholeSystems as it contains specific code that should not end up there.
 - `feat/xxx` are features branches (where "xxx" is the name of the feature).
 - `fix/xxx` contain fixes (where "xxx" is the name of the fix).
 
@@ -47,7 +47,7 @@ For features/fixes that will land on both origin and upstream.
   git pull origin development
   git checkout -b feat/xxx # or fix/xxx
   ```
-- Make and changes and commit them.
+- Make your changes and commit them.
   Do not forget to test your change and run the automated tests.
 - Push your branch to origin:
   ```shell
@@ -65,19 +65,13 @@ For features/fixes that will land only on origin.
   git pull origin main
   git checkout -b feat/xxx # or fix/xxx
   ```
-- Make and changes and commit them.
+- Make your changes and commit them.
   Do not forget to test your change and run the automated tests.
 - Push your branch to origin:
   ```shell
   git push origin feat/xxx # or fix/xxx
   ```
 - Open a [Pull Request](https://github.com/Proudly-Snoring/WormholeSystems/compare/Proudly-Snoring:WormholeSystems:main...development) from origin `feat/xxx` to the **origin** `main` branch.
-
-### For a release
-
-- Make sure all related features are on origin `main` (merge origin `development` if needed).
-- Thoroughly test from the origin `main` branch (do not forget to test the containers too).
-- Create [a new release](https://github.com/Proudly-Snoring/WormholeSystems/releases/new) from origin `main`, giving it a tag following the [semantic versioning](https://semver.org/) convention.
 
 ## Tests
 
@@ -104,3 +98,23 @@ npm run lint      # npm (ESLint)
 
 The CI runs the full test+linter suite on every push.
 A failing test or lint error will block the PR.
+
+
+## Release process
+
+- Make sure all related features are on origin `main` (merge origin `development` if needed).
+- Thoroughly test from the origin `main` branch (do not forget to test the containers too).
+- Create [a new release](https://github.com/Proudly-Snoring/WormholeSystems/releases/new) from origin `main`, giving it a tag following the [semantic versioning](https://semver.org/) convention (no leading `v`).
+
+Publishing the release triggers [`.github/workflows/publish.yml`](.github/workflows/publish.yml), which builds the image from [`deploy/Dockerfile`](deploy/Dockerfile) and pushes it to `ghcr.io/proudly-snoring/wormholesystems`, tagged with the release version. Once the workflow run is green, the new image is live on GHCR.
+
+Marking the release as a **prerelease** on GitHub is what keeps it out of the way of production: the workflow then publishes the version tag only, and leaves `latest` pointing at the previous stable release. A normal release moves `latest` too.
+
+See [`deploy/readme.md`](deploy/readme.md) for deployment details (incl. local testing of the image).
+
+Notes:
+- The workflow only ever *publishes* - it never runs migrations or touches a live deployment — that happens on the target server when the new image starts (`deploy/files/entrypoint.sh` runs `php artisan migrate --force`).
+- GHCR packages pushed by a workflow's default token can start out private.
+  The first time this workflow runs, check the package's visibility under the repo's **Packages** tab and set it to **Public** if needed — otherwise anonymous `docker pull` will fail.
+  This is a one-time setting per package - it doesn't need repeating on later releases.
+- The image is **not** domain-agnostic. `VITE_APP_NAME` and the browser-facing `VITE_REVERB_*` values are passed as build args (declared in the workflow's `env` block) and inlined into the JavaScript bundle by Vite, so the published image is specific to `mapper.prsn.online`. Changing any of them means editing that block and publishing a new release — cf. [Values baked into the image](deploy/architecture.md#values-baked-into-the-image).

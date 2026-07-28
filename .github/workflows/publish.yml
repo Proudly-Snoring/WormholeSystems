@@ -1,0 +1,158 @@
+# Publishes the application image to GHCR on release.
+# Each platform builds on a native runner and pushes by digest, then `merge` combines those digests into one multi-platform tag.
+# The image tag is the release version and the `latest` tag is also added except for prereleases.
+#
+# Note that GHCR rejects uppercase in a repository name.
+# The metadata-action lowercases `images` itself, but the raw uses need it done explicitly.
+#
+# The `env` block below is the authoritative declaration of what is frozen into the published
+# image, so the image that comes out of here only ever talks to mapper.prsn.online —
+# self-hosters on another domain have to build their own, cf. deploy/architecture.md.
+# - VITE_* is read by Vite at build time and inlined into the JS bundle. VITE_REVERB_APP_KEY is
+#   additionally baked as the runtime REVERB_APP_KEY by deploy/Dockerfile, so the server and the
+#   browser can never end up holding different keys. Note that this key is not a secret and is
+#   sent to every browser.
+# - APP_URL, SERVER_NAME, EVE_CALLBACK, DISCORD_CALLBACK and SESSION_SECURE_COOKIE are baked
+#   straight into the image as runtime ENV by deploy/Dockerfile — not build-time-only, deploy/.env
+#   deliberately has no entry for them, so nothing in the stack's config can override the domain
+#   the image was built for.
+
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  APP_URL: https://mapper.prsn.online
+  DISCORD_CALLBACK: https://mapper.prsn.online/discord/callback
+  EVE_CALLBACK: https://mapper.prsn.online/eve/callback
+  SERVER_NAME: mapper.prsn.online
+  SESSION_SECURE_COOKIE: "true"
+  VITE_APP_NAME: WormholeSystems
+  VITE_REVERB_APP_KEY: 82a3sonnjzgxmod8tr6x
+  VITE_REVERB_HOST: mapper.prsn.online
+  VITE_REVERB_PORT: "443"
+  VITE_REVERB_SCHEME: https
+
+jobs:
+  check-version:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check the release tag is a version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag \"$TAG\" is not a valid version, cf. the release process in contributing.md."
+            exit 1
+          fi
+
+  build:
+    needs: check-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            slug: linux-amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            slug: linux-arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            APP_URL=${{ env.APP_URL }}
+            DISCORD_CALLBACK=${{ env.DISCORD_CALLBACK }}
+            EVE_CALLBACK=${{ env.EVE_CALLBACK }}
+            SERVER_NAME=${{ env.SERVER_NAME }}
+            SESSION_SECURE_COOKIE=${{ env.SESSION_SECURE_COOKIE }}
+            VITE_APP_NAME=${{ env.VITE_APP_NAME }}
+            VITE_REVERB_APP_KEY=${{ env.VITE_REVERB_APP_KEY }}
+            VITE_REVERB_HOST=${{ env.VITE_REVERB_HOST }}
+            VITE_REVERB_PORT=${{ env.VITE_REVERB_PORT }}
+            VITE_REVERB_SCHEME=${{ env.VITE_REVERB_SCHEME }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest='${{ steps.build.outputs.digest }}'
+          touch "/tmp/digests/${digest#sha256:}"
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+      - name: Resolve image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ github.event.release.tag_name }}
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          tags=$(jq -cr '.tags | map("-t " + .) | join(" ")' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          sources=$(printf '${{ steps.image.outputs.name }}@sha256:%s ' *)
+          # shellcheck disable=SC2086 # word splitting is intended: both expand to argument lists
+          docker buildx imagetools create $tags $sources
+      - name: Inspect image
+        run: docker buildx imagetools inspect ${{ steps.image.outputs.name }}:${{ steps.meta.outputs.version }}

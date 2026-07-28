@@ -34,10 +34,9 @@ npm install
 php artisan key:generate
 php artisan migrate
 
-# EVE static data (~500MB download; seeding may need more memory)
+# EVE static data (~500MB download)
 php artisan sde:download
-php artisan sde:prepare
-php -d memory_limit=2G artisan db:seed
+php artisan db:seed
 ```
 
 In Herd, make sure **MySQL** and **Redis** are running and create a database named `wormholesystems`. Herd serves the site at `https://wormholesystems.test` (derived from the folder name).
@@ -106,7 +105,6 @@ Channel alerts can optionally use Discord's native role picker. The selected rol
 Map managers configure alert rules, bot-managed alert oversight, delivery destinations, and role mentions on the map's **Discord settings** page at `/maps/{map}/settings/discord`. Delivery destinations may use Discord channel webhook URLs; these webhooks remain one delivery type within the broader Discord configuration.
 
 Configure the application credentials in `.env`:
-
 ```dotenv
 DISCORD_APPLICATION_ID=           # Application ID from General Information
 DISCORD_CLIENT_ID=                # Usually the same value as the Application ID
@@ -119,7 +117,6 @@ DISCORD_TEST_GUILD_ID=
 ```
 
 Register the commands globally for production:
-
 ```bash
 php artisan discord:register-commands --global
 ```
@@ -127,7 +124,6 @@ php artisan discord:register-commands --global
 For development, set `DISCORD_TEST_GUILD_ID` and omit `--global`. Guild commands update immediately, while global command changes can take time to propagate.
 
 The bot is a long-running CLI process and must run separately from queue workers, Reverb and Octane:
-
 ```bash
 php artisan discord:listen
 ```
@@ -165,9 +161,21 @@ php artisan discord:listen
 - **Slash commands are missing** → Install the application with `applications.commands`, then register commands globally or against `DISCORD_TEST_GUILD_ID`.
 - **Discord alerts are not delivered** → Bot process and queue worker running? Check channel permissions and the configured bot token.
 
+## Deployment
+
+[`deploy/`](deploy/) is Proudly Snoring's own deployment stack for **mapper.prsn.online** — a compose file, a Dockerfile and a Caddyfile that run the whole application, TLS included. See [`deploy/readme.md`](deploy/readme.md).
+
+Every [GitHub release](https://github.com/Proudly-Snoring/WormholeSystems/releases) publishes a versioned image built from it to `ghcr.io/proudly-snoring/wormholesystems`, tagged with the release version, plus `latest` (unless the release is marked as a prerelease). See [contributing.md](contributing.md#release-process) for how the release workflow itself works.
+
+> [!IMPORTANT]
+> **That image is built for `mapper.prsn.online` and cannot serve another domain.** The websocket host, port, scheme and app key the browser uses are inlined into the JavaScript bundle by Vite at build time, so they are fixed once the image exists — no amount of `.env` changes moves them.
+>
+> To host this yourself, build your own image with your own domain in the build args (they are declared in [`.github/workflows/publish.yml`](.github/workflows/publish.yml)).
+> `deploy/` is a working example of how the pieces fit together, but it is not written as a general-purpose template: it hardcodes this instance's hostname and callbacks.
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [contributing.md](contributing.md).
 
 ## License
 

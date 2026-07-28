@@ -1,0 +1,53 @@
+.git
+.github
+.vscode
+.idea
+.fleet
+.nova
+.zed
+.cursor
+.junie
+
+node_modules
+vendor
+
+storage/app
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+!storage/**/.gitignore
+
+public/build
+public/hot
+public/storage
+public/workers
+# Service worker output. `npm run build` rewrites sw.js, but the workbox runtime is
+# hash-named, so a local build would otherwise carry a stale copy into the image.
+public/sw.js
+public/workbox-*.js
+
+resources/js/wayfinder
+resources/js/actions
+resources/js/routes
+resources/static
+
+bootstrap/ssr
+bootstrap/cache/*.php
+
+# Unlike .gitignore, a bare `.env` here only matches the one at the context root — so these are
+# globbed explicitly to also catch deploy/.env, which holds real deployment secrets.
+**/.env
+**/.env.*
+!.env.example
+
+.phpunit.cache
+.phpunit.result.cache
+tests/Browser/Screenshots
+
+.scribe
+
+deploy/backups
+
+npm-debug.log
+yarn-error.log
