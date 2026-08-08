@@ -7,26 +7,28 @@ The objective is to maintain _pull_ and _push_ capabilities with the upstream re
 ## Branches
 
 We use different types of branches:
-- `development` is the shared code with the **upstream** `development` branch, which is the most up to date branch with latest developments. This branch should be in sync with the **upstream** remote.
-- `main` is local to the **origin** repository.  It contains the latest code and is deployable in Proudly Snoring infrastructure. It is **not** shared with WormholeSystems/WormholeSystems as it contains specific code that should not end up there.
+- **Origin** `development` is the shared code with the **upstream** `main` branch, which is the most up to date branch with latest developments.
+  This branch should be in sync with the **upstream** remote.
+- `main` is local to the **origin** repository.  It contains the latest code and is deployable in Proudly Snoring infrastructure.
+  It is **not** shared with WormholeSystems/WormholeSystems as it contains speficic code that should not end up there.
 - `feat/xxx` are features branches (where "xxx" is the name of the feature).
 - `fix/xxx` contain fixes (where "xxx" is the name of the fix).
 
 ### Rules
 
-- You must **never** _push_ to `development` directly (on any remote).
-- You should regularly merge upstream `development` into origin `development`.
-- You must **never** merge `main` into `development` (on both remotes).
+- You must **never** _push_ features/fixes to `development` directly (on any remote).
+- You should regularly merge upstream `main` into origin `development`.
+- You must **never** merge origin `main` into `development` (on any remote).
 - You should regularly merge origin `development` into origin `main`.
 
 For **shared** features/fixes (landing on both origin and upstream):
 - You must create your branch from the **origin** `development` branch.
-- You should create a Pull Request from your feature/fix branch to the **upstream** `development` branch.
-- Once approved, you should merge **upstream** `development` into **origin** `development`.
+- You should create a Pull Request from your feature/fix branch to the **upstream** `main` branch.
+- Once approved, you should merge **upstream** `main` into **origin** `development`.
 
 For **specific** features/fixes (landing only on origin):
 - You should create your branch from the **origin** `main` branch (but you can also use `development`).
-- You should create a Pull Request from your feature/fix branch to the **origin** `main` branch _for  features/fixes_.
+- You should create a Pull Request from your feature/fix branch to the **origin** `main` branch _for features/fixes_.
 
 
 ## Development workflow
@@ -35,7 +37,7 @@ For **specific** features/fixes (landing only on origin):
 ```shell
 git clone git@github.com:Proudly-Snoring/WormholeSystems.git
 git remote add upstream git@github.com:WormholeSystems/WormholeSystems.git
-git branch --set-upstream-to=upstream/development
+git config checkout.defaultRemote origin
 ```
 
 ### For **shared** features/fixes
@@ -43,7 +45,7 @@ git branch --set-upstream-to=upstream/development
 For features/fixes that will land on both origin and upstream.
 - Create a new branch from origin `development`:
   ```shell
-  git checkout development
+  git checkout origin development
   git pull origin development
   git checkout -b feat/xxx # or fix/xxx
   ```
@@ -53,15 +55,17 @@ For features/fixes that will land on both origin and upstream.
   ```shell
   git push origin feat/xxx # or fix/xxx
   ```
-- Open a [Pull Request](https://github.com/WormholeSystems/WormholeSystems/compare/development...Proudly-Snoring:WormholeSystems:development) from origin `feat/xxx` to the **upstream** `development` branch.
-- Once the PR is approved and merged upstream, pull upstream `development` into origin `development`.
+- Open a [Pull Request](https://github.com/WormholeSystems/WormholeSystems/compare/main...Proudly-Snoring:WormholeSystems:development) from origin `feat/xxx` to the **upstream** `main` branch.
+- Once the PR is approved and merged upstream, merge upstream `main` into origin `development`.
+
+>⚠️ When merging a PR, make sure to **merge** the commits - do NOT **rebase** or **squash** them (else, commits from origin and upstream will not match).
 
 ### For **specific** features/fixes
 
 For features/fixes that will land only on origin.
 - Create a new branch from origin `main`:
   ```shell
-  git checkout main
+  git checkout origin main
   git pull origin main
   git checkout -b feat/xxx # or fix/xxx
   ```
