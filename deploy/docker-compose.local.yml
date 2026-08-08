@@ -1,0 +1,48 @@
+# Local override — builds the image from source instead of pulling it from GHCR, and
+# points everything at localhost (no HTTPS, nor ACME).
+#
+# Needs Compose v2.24 or newer, for the `!override` tag on `ports` below.
+#
+# Usage (from the repository root):
+# - Run `deploy/generate-env.sh`,
+# - Start the stack with:
+#     docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml up --build
+# - The app is then on http://localhost:8000.
+
+x-local-env: &local-env
+  APP_ENV: local
+  APP_DEBUG: "true"
+  APP_URL: "http://localhost:8000"
+  DISCORD_CALLBACK: "http://localhost:8000/discord/callback"
+  EVE_CALLBACK: "http://localhost:8000/eve/callback"
+  LOG_LEVEL: debug
+  REVERB_APP_KEY: local # matches VITE_REVERB_APP_KEY in the build args below.
+  SERVER_NAME: ":80"
+  SESSION_SECURE_COOKIE: "false"
+
+x-local-image: &local-image
+  # `environment:` wins over `env_file:`, which is what lets deploy/.env stay a production file.
+  environment: *local-env
+  image: wormholesystems:local
+
+services:
+  app:
+    <<: *local-image
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        # Frozen into the JS bundle by Vite, exactly as the release workflow does it for
+        # production — cf. .github/workflows/publish.yml.
+        VITE_REVERB_APP_KEY: local
+        VITE_REVERB_HOST: localhost
+        VITE_REVERB_PORT: 8000
+        VITE_REVERB_SCHEME: http
+    ports: !override
+      - "8000:80"
+
+  discord: *local-image
+  killmail-listener: *local-image
+  queue: *local-image
+  reverb: *local-image
+  scheduler: *local-image

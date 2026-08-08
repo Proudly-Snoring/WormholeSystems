@@ -1,0 +1,63 @@
+# Caddy configuration for the FrankenPHP runtime image, replacing the stock one it ships with.
+# Kept deliberately close to https://github.com/php/frankenphp/blob/main/caddy/frankenphp/Caddyfile
+# so upstream changes stay easy to follow.
+#
+# https://frankenphp.dev/docs/config
+# https://caddyserver.com/docs/caddyfile
+{
+	skip_install_trust
+	metrics
+
+	{$CADDY_GLOBAL_OPTIONS}
+
+	frankenphp {
+		{$FRANKENPHP_CONFIG}
+	}
+}
+
+# The public site. `SERVER_NAME` has no inline default here on purpose: the image sets
+# `ENV SERVER_NAME=:80`, which keeps a plain local run on HTTP, and docker-compose.yml
+# overrides it with the public hostname in production — which is what switches Caddy to
+# ports 80/443 and makes it request a Let's Encrypt certificate on its own.
+#
+# The application websocket: inside the user's browser, it connects to /app/<key> on this same
+# origin, so only one hostname and certificate are needed.
+# Reverb's server-side HTTP API lives at /apps/<id>/events (plural), which this matcher
+# does not expose.
+# Explicit `handle` blocks rather than a bare matched `reverse_proxy`, so the routing
+# does not depend on Caddy's implicit ordering of directives relative to `php_server`.
+{$SERVER_NAME} {
+	root public/
+	encode zstd br gzip
+
+	log {
+		output file /app/storage/logs/access.log {
+			roll_size 10MiB
+			roll_keep 5
+			roll_keep_for 168h
+		}
+	}
+
+	handle /app/* {
+		reverse_proxy reverb:8080
+	}
+
+	handle {
+		php_server
+	}
+}
+
+# Loopback-only site for the compose healthcheck.
+#
+# Once `SERVER_NAME` is a hostname, a request to http://127.0.0.1:80/up gets Caddy's 308
+# redirect to https://<hostname>/up, which the container cannot resolve — so a check
+# against the public site would fail on exactly the deployment it is meant to watch.
+#
+# This plain-HTTP site keeps the check honest and still goes through PHP, rather than
+# only proving that Caddy is listening. Binding to 127.0.0.1 keeps it unreachable from
+# the other containers on the compose network.
+http://127.0.0.1:8081 {
+	root public/
+
+	php_server
+}
