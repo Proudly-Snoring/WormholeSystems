@@ -1,91 +1,75 @@
-# Proudly Snoring's production stack for mapper.prsn.online, running the published image.
+# Proudly Snoring's production stack for https://mapper.prsn.online, running the published image.
 #
-# Quick start (from the repository root):
-# - Run `deploy/generate-env.sh`,
-# - Fill in EVE_CLIENT_ID, EVE_CLIENT_SECRET and CONTACT_EMAIL in `deploy/.env`,
-# - Boot the stack with `docker compose -f deploy/docker-compose.yml up -d`.
+# The whole stack is here.
+# Everything without a profile is always started while the optional services sit behind one:
+# - mariadb — the database. Drop it to point the app at an external database server.
+# - redis   — the cache. Drop it to point the app at an external Redis server.
+# - proxy   — the TLS-terminating reverse proxy. Drop it to put a generic proxy in front instead.
+# - backup  — the one-shot job that dumps the database. Implies `mariadb`.
+# - discord — the bot: slash commands and personal alerts.
 #
-# The `app` service terminates TLS itself: FrankenPHP embeds Caddy, which gets a Let's Encrypt
-# certificate for SERVER_NAME and proxies /app/* to Reverb over the internal network.
+# For convenience, profiles are set in deploy/.env: COMPOSE_PROFILES=mariadb,proxy,redis.
+# Every command (up, logs, down...) sees the same stack, with no shell state to keep in sync and nothing to forget.
+#
+# /!\ `--profile x` on the command line *replaces* COMPOSE_PROFILES, it does not add to it.
+# /!\ To enable one more, list them all: COMPOSE_PROFILES=mariadb,proxy,redis,discord.
 #
 # To build the image from source instead of pulling it, layer `deploy/docker-compose.local.yml`
 # on top — cf. its header comment.
 
 x-app: &app
+  # Template used by all the frontend and backend services using the `wormholesystems` image.
   image: ghcr.io/proudly-snoring/wormholesystems:latest
   depends_on:
     mariadb:
       condition: service_healthy
+      required: false
     redis:
       condition: service_healthy
+      required: false
   environment:
-    # Built from CONTACT_EMAIL in deploy/.env, so that is the only address to fill in there.
     APP_USER_AGENT: "Proudly-Snoring/WormholeSystems | https://mapper.prsn.online | contact: ${CONTACT_EMAIL}"
     BROADCAST_CONNECTION: reverb
     CACHE_STORE: redis
-    # Caddy's global options — the ACME account contact, so Let's Encrypt has somewhere to send
-    # expiry warnings. Only the `app` service reads this; harmless as an unused var elsewhere.
-    # `:+` so an unset CONTACT_EMAIL drops the whole directive.
-    CADDY_GLOBAL_OPTIONS: "${CONTACT_EMAIL:+email ${CONTACT_EMAIL}}"
     DB_CONNECTION: mysql
-    DB_HOST: mariadb
-    DB_DATABASE: wormholesystems
-    DB_USERNAME: wormholesystems
+    DB_HOST: ${DB_HOST:-mariadb}
+    DB_PORT: ${DB_PORT:-3306}
+    DB_DATABASE: ${DB_DATABASE:-wormholesystems}
+    DB_USERNAME: ${DB_USERNAME:-wormholesystems}
     LOG_STACK: daily
     QUEUE_CONNECTION: database
-    REDIS_HOST: redis
+    REDIS_HOST: ${REDIS_HOST:-redis}
     REVERB_HOST: reverb
     REVERB_PORT: 8080
     REVERB_SCHEME: http
   env_file:
     - .env
-  # The FrankenPHP base image ships `HEALTHCHECK curl -f http://localhost:2019/metrics`, which only the `app` service can answer.
-  # The others run an artisan command, not the web server, so they would sit permanently `unhealthy`.
-  healthcheck:
-    disable: true
   networks:
     - wormholesystems
   volumes:
     - laravel-storage:/app/storage
 
 services:
+  # ---------------------------------------------------------------------------
+  # Main services (required)
+  # ---------------------------------------------------------------------------
+
   app:
+    # Main application server.
+    # Serve static and PHP files with nginx + php-fpm on plain HTTP port 80, reachable only from the compose network.
+    # Use a generous start period because nothing answers until entrypoint.sh is done:
+    # on a first boot that means the whole migration set before the web server even starts.
     <<: *app
-    ports:
-      - "80:80" # needed by ACME (the challenge answers on 80).
-      - "443:443" # HTTPS (HTTP/1 and HTTP/2)
-      - "443:443/udp" # for HTTP/3.
     restart: unless-stopped
-    volumes:
-      # Caddy's certificate store. Without it every restart re-requests the certificate.
-      - caddy-data:/data
-      - laravel-storage:/app/storage
     healthcheck:
-      # Not the public site: with SERVER_NAME set to a hostname, a request to :80 gets redirected to https://<hostname>/,
-      # which the container cannot resolve. Caddy serves a loopback-only plain-HTTP copy on 8081 for exactly this.
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8081/up"]
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1/up"]
       interval: 10s
       timeout: 5s
       retries: 5
-      # Generous, because nothing answers until entrypoint.sh is done: on a first boot that means
-      # the whole migration set before the web server even starts. Going unhealthy there would
-      # also strand every service that waits on `app: service_healthy`.
       start_period: 180s
 
-  # Slash commands and personal Discord alerts.
-  # Behind a profile because the Discord keys in deploy/.env are optional: started unconditionally, it
-  # would crash-loop on any instance that left DISCORD_BOT_TOKEN empty.
-  # Start it with `--profile discord`, and register the commands once beforehand — cf. the "Discord bot" section of deploy/readme.md.
-  discord:
-    <<: *app
-    profiles: ["discord"]
-    command: php artisan discord:listen
-    restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
-
   killmail-listener:
+    # Pull killmails from zkillboard.
     <<: *app
     command: php artisan app:listen-for-killmails
     restart: unless-stopped
@@ -103,8 +87,8 @@ services:
 
   reverb:
     <<: *app
-    # No published port: browsers reach the websocket through Caddy on the app's own origin (wss://<hostname>/app/<key>),
-    # so Reverb only ever needs to be reachable from inside the compose network.
+    # No published port: browsers reach the websocket through the proxy on the app's own origin (wss://<hostname>/app/<key>).
+    # Reverb only ever needs to be reachable from inside the compose network.
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     restart: unless-stopped
     depends_on:
@@ -113,39 +97,63 @@ services:
 
   scheduler:
     <<: *app
-    command: ["supercronic", "-overlapping", "/etc/supercronic/laravel"]
+    command: php artisan schedule:work
+    # Tasks use runInBackground(), so this process gets grandchildren it never reaps.
+    # "init: true" spawns a real process as PID 1 that does the reaping instead.
+    init: true
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Main services (required)
+  # ---------------------------------------------------------------------------
+  
+  discord:
+    # Required for discord slash commands and personal Discord alerts.
+    # cf. readme.md#discord_bot
+    <<: *app
+    profiles: ["discord"]
+    command: php artisan discord:listen
     restart: unless-stopped
     depends_on:
       app:
         condition: service_healthy
 
   mariadb:
+    # The optional internal database.
+    # For the healthcheck, a plain `mariadb-admin ping -h localhost` answers over the unix socket while MariaDB is still running its init scripts.
+    # Going over TCP with the application credentials proves the server, the user and the database are all ready.
+    # NB: `$$` defers the expansion to the container's own shell, so the password is read from the container environment rather than baked into the healthcheck definition.
     image: mariadb:12.3
+    profiles: ["mariadb", "backup"]
     restart: unless-stopped
     stop_grace_period: 60s
     environment:
-      MARIADB_DATABASE: wormholesystems
+      MARIADB_DATABASE: ${DB_DATABASE:-wormholesystems}
       MARIADB_PASSWORD: ${DB_PASSWORD}
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
-      MARIADB_USER: wormholesystems
+      MARIADB_USER: ${DB_USERNAME:-wormholesystems}
     networks:
       - wormholesystems
     volumes:
       - mariadb-data:/var/lib/mysql
     healthcheck:
-      # A plain `mariadb-admin ping -h localhost` answers over the unix socket while MariaDB is still running its init scripts, i.e. before MARIADB_DATABASE/MARIADB_USER exist.
-      # Going over TCP with the application credentials proves the server, the user and the database are all ready.
-      test: ["CMD", "mariadb", "-h", "127.0.0.1", "-u", "wormholesystems", "-p${DB_PASSWORD}", "-e", "SELECT 1", "wormholesystems"]
+      test: ["CMD-SHELL", "mariadb -h 127.0.0.1 -u \"$$MARIADB_USER\" -p\"$$MARIADB_PASSWORD\" -e 'SELECT 1' \"$$MARIADB_DATABASE\""]
       interval: 10s
       timeout: 5s
       retries: 5
 
   backup:
+    # The database backup job (for the internal database only).
+    # A one-shot job (compose has no "cron" feature), so it requires an external call to `docker compose run --rm backup`.
     image: mariadb:12.3
     profiles: ["backup"]
     restart: "no"
     environment:
       MARIADB_HOST: mariadb
+      MARIADB_DATABASE: ${DB_DATABASE:-wormholesystems}
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
       BACKUP_ENCRYPTION_PASSPHRASE: ${BACKUP_ENCRYPTION_PASSPHRASE}
     depends_on:
@@ -158,8 +166,44 @@ services:
       - ./files/backup.sh:/backup.sh:ro
     entrypoint: ["bash", "/backup.sh"]
 
+  proxy:
+    # The optional, TLS-terminating, reverse proxy.
+    # This is the only service in the whole stack that publishes ports:
+    # - tcp/80 for ACME challenge and the redirect to HTTPS.
+    # - tcp/443 for HTTPS (HTTP/1.1 and HTTP/2)
+    # - udp/443 for HTTP/3.
+    image: caddy:2-alpine
+    profiles: ["proxy"]
+    restart: unless-stopped
+    environment:
+      # The public hostname.
+      # It has to match VITE_REVERB_HOST, which Vite inlines into the JS bundle at build time
+      SERVER_NAME: ${SERVER_NAME:-mapper.prsn.online}
+      # Caddy's global options — the ACME account contact, so Let's Encrypt has somewhere to send expiry warnings.
+      # NB: `:+` is used so an unset CONTACT_EMAIL drops the whole directive.
+      CADDY_GLOBAL_OPTIONS: "${CONTACT_EMAIL:+email ${CONTACT_EMAIL}}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - wormholesystems
+    volumes:
+      # Caddy's certificate store. Without it every restart re-requests the certificate and the
+      # deployment runs into Let's Encrypt's five-per-week duplicate limit.
+      - caddy-data:/data
+      - caddy-config:/config
+      - ./files/Caddyfile:/etc/caddy/Caddyfile:ro
+
   redis:
+    # The optional internal cache.
+    # Reachable only over the compose network, and therefore left without password protec tion.
+    # Every service built on the `x-app` template needs it.
     image: redis:7.2
+    profiles: ["redis"]
     restart: unless-stopped
     networks:
       - wormholesystems
@@ -169,10 +213,16 @@ services:
       timeout: 5s
       retries: 5
 
+# ---------------------------------------------------------------------------
+# Other docker objects (networks, volumes...)
+# ---------------------------------------------------------------------------
+
 networks:
   wormholesystems:
+    name: wormholesystems
 
 volumes:
+  caddy-config:
+  caddy-data:
   laravel-storage:
   mariadb-data:
-  caddy-data:

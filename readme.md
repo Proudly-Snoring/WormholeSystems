@@ -163,7 +163,7 @@ php artisan discord:listen
 
 ## Deployment
 
-[`deploy/`](deploy/) is Proudly Snoring's own deployment stack for **mapper.prsn.online** — a compose file, a Dockerfile and a Caddyfile that run the whole application, TLS included. See [`deploy/readme.md`](deploy/readme.md).
+[`deploy/`](deploy/) is Proudly Snoring's own deployment stack for **mapper.prsn.online** — a Dockerfile plus a compose file holding the application, an optional database, and an optional Caddy reverse proxy that terminates TLS. Drop either optional profile to use a database or a proxy you already run. See [`deploy/readme.md`](deploy/readme.md).
 
 Every [GitHub release](https://github.com/Proudly-Snoring/WormholeSystems/releases) publishes a versioned image built from it to `ghcr.io/proudly-snoring/wormholesystems`, tagged with the release version, plus `latest` (unless the release is marked as a prerelease). See [contributing.md](contributing.md#release-process) for how the release workflow itself works.
 

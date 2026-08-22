@@ -60,6 +60,7 @@ if [ ! -e "$env_file" ]; then
 	cp "$env_example" "$env_file"
 fi
 
+echo
 echo "Generating secrets in \"$env_file\"..."
 fill APP_KEY "base64:$(openssl rand -base64 32)"
 fill DB_PASSWORD "$(openssl rand -hex 32)"
