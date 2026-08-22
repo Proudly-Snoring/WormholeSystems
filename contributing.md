@@ -118,6 +118,7 @@ See [`deploy/readme.md`](deploy/readme.md) for deployment details (incl. local t
 
 Notes:
 - The workflow only ever *publishes* - it never runs migrations or touches a live deployment — that happens on the target server when the new image starts (`deploy/files/entrypoint.sh` runs `php artisan migrate --force`).
+- The compose file in `deploy/` is part of the release too, even though only the image is pushed. The image's `CMD`, the entrypoint's role sentinel and the compose file assume each other, so a deployment should take both from the same release rather than bumping the image tag against an older checkout.
 - GHCR packages pushed by a workflow's default token can start out private.
   The first time this workflow runs, check the package's visibility under the repo's **Packages** tab and set it to **Public** if needed — otherwise anonymous `docker pull` will fail.
   This is a one-time setting per package - it doesn't need repeating on later releases.

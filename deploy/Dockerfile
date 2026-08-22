@@ -26,8 +26,12 @@ RUN composer install \
 # - type-checks against generated route helpers (`artisan wayfinder:generate`),
 # - EVE static data generation (`artisan generate:static-data`),
 # - node/npm is in charge of building the frontend web files.
+#
+# Debian trixie ships PHP 8.4 in its own repositories, so this needs no third-party APT source.
+# The extension set below is the one `composer check-platform-reqs` asks for.
+# `pcntl` and `sockets` are compiled into Debian's php8.4-cli and have no package.
 
-FROM dunglas/frankenphp:builder-php8.4 AS build
+FROM debian:trixie-slim AS build
 
 WORKDIR /app
 
@@ -36,36 +40,33 @@ WORKDIR /app
 ENV DB_HOST=127.0.0.1
 ENV REDIS_HOST=127.0.0.1
 
-RUN install-php-extensions bz2 intl pcntl pdo_mysql redis sockets zip
+ENV DEBIAN_FRONTEND=noninteractive
 
-# The builder image ships PHP but no Node, so Node is grafted in from the official image.
-# The major version tracks the one CI uses in .github/workflows/tests.yml, so a build that
-# passes there is the same build that ships.
-# npm/npx are symlinks in node:22 and COPY dereferences those, which would land the launcher
-# scripts in bin/ as regular files and break their relative require(). They are recreated instead.
-COPY --from=node:22 /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=node:22 /usr/local/bin/node /usr/local/bin/node
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
-
-# Install apt dependencies
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wget \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libgcc-s1 \
+        libstdc++6 \
+        php8.4-cli \
+        php8.4-bz2 \
+        php8.4-curl \
+        php8.4-intl \
+        php8.4-mbstring \
+        php8.4-mysql \
+        php8.4-redis \
+        php8.4-xml \
+        php8.4-zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Supercronic drives the Laravel scheduler (the `scheduler` service in docker-compose.yml).
-# It's a minimal, foreground-friendly cron replacement that ticks `artisan schedule:run` every minute.
-RUN arch="$(uname -m)" \
-    && case "$arch" in \
-        aarch64) cronic_bin='supercronic-linux-arm64' ;; \
-        armv7l) cronic_bin='supercronic-linux-arm' ;; \
-        x86_64) cronic_bin='supercronic-linux-amd64' ;; \
-        *) echo >&2 "error: unsupported architecture: $arch"; exit 1 ;; \
-    esac \
-    && wget -q "https://github.com/aptible/supercronic/releases/download/v0.2.38/${cronic_bin}" -O /usr/local/bin/supercronic \
-    && chmod +x /usr/local/bin/supercronic \
-    && mkdir -p /etc/supercronic \
-    && echo "*/1 * * * * php /app/artisan schedule:run --no-interaction" > /etc/supercronic/laravel
+# Debian's PHP packages carry no Node, so Node is grafted in from the official image.
+# The major version tracks the one CI uses in .github/workflows/tests.yml, so a build that
+# passes there is the same build that ships.
+COPY --from=node:22 /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node:22 /usr/local/bin/node /usr/local/bin/node
+# npm/npx are symlinks in node:22 and COPY dereferences those, which would land the launcher
+# scripts in bin/ as regular files and break their relative require(). They are recreated instead.
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 # Import vendor and source files
 COPY --from=vendor /app/vendor ./vendor
@@ -134,28 +135,58 @@ RUN rm -rf .env .env.production node_modules resources/static storage/app/privat
 # ---------------------------------------------------------------------------
 # Stage 3: runtime
 # ---------------------------------------------------------------------------
+# nginx + php-fpm on plain Debian, serving HTTP on port 80 and nothing else.
+#
+# There is deliberately no EXPOSE and no TLS here: this image is only ever reached from inside
+# the compose network. Certificates, the public hostname and the websocket route belong to the
+# optional proxy — cf. deploy/docker-compose.proxy.yml and deploy/files/Caddyfile.
 
-FROM dunglas/frankenphp:php8.4 AS runtime
+FROM debian:trixie-slim AS runtime
 
 WORKDIR /app
 
-# Install apt dependencies.
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && install-php-extensions bz2 intl pcntl pdo_mysql redis sockets zip \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        nginx \
+        php8.4-fpm \
+        php8.4-cli \
+        php8.4-bz2 \
+        php8.4-curl \
+        php8.4-intl \
+        php8.4-mbstring \
+        php8.4-mysql \
+        php8.4-opcache \
+        php8.4-redis \
+        php8.4-xml \
+        php8.4-zip \
     && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Copy the vendor binaries (laravel + supercronic)
-COPY --from=build /usr/local/bin/supercronic /usr/local/bin/supercronic
-COPY --from=build /etc/supercronic/laravel /etc/supercronic/laravel
-
 # Copy the static files from deploy/files/
-COPY deploy/files/php.ini /usr/local/etc/php/conf.d/99-wormholesystems.ini
-COPY deploy/files/Caddyfile /etc/caddy/Caddyfile
+# php.ini goes into both SAPI directories:
+# - the FPM one covers the web requests,
+# - the CLI one covers the entrypoint's artisan commands and the queue/scheduler/reverb/listener roles
+COPY deploy/files/php.ini /etc/php/8.4/fpm/conf.d/99-wormholesystems.ini
+COPY deploy/files/php.ini /etc/php/8.4/cli/conf.d/99-wormholesystems.ini
+COPY deploy/files/php-fpm.conf /etc/php/8.4/fpm/pool.d/www.conf
+COPY deploy/files/nginx.conf /etc/nginx/conf.d/app.conf
+COPY deploy/files/run-web.sh /usr/local/bin/run-web.sh
 COPY deploy/files/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-web.sh
+
+# Debian ships a `default_server` vhost on :80. We will replace it with our own.
+RUN rm -f /etc/nginx/sites-enabled/default
+RUN mkdir -p /run/php
+
+# nginx logs are redirected via a symlink to stdout/stderr so the docker logs catch them.
+# NB: Access logging is off by default in files/nginx.conf.
+RUN ln -sf /dev/stderr /var/log/nginx/error.log
+RUN ln -sf /dev/stdout /var/log/nginx/access.log
 
 # Copy the built application
 COPY --from=build /app /app
@@ -164,9 +195,9 @@ COPY --from=build /app /app
 RUN mkdir -p /app/storage/framework/sessions /app/storage/framework/views /app/storage/framework/cache /app/storage/logs /app/bootstrap/cache
 RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache
 
-# The below env are frozen into the image rather than left in deploy/.env: the websocket host and 
-# the ACME certificate name are already baked in via VITE_REVERB_* above and can't be repointed at
-# runtime, so a differing APP_URL/SERVER_NAME here would always be a misconfiguration.
+# The below env are frozen into the image rather than left in deploy/.env: the websocket host is
+# already baked in via VITE_REVERB_* above and can't be repointed at runtime, so a differing
+# APP_URL here would always be a misconfiguration.
 #
 # Defaults below are the ones a plain `docker build` should get, i.e. a localhost stack — the
 # same one docker-compose.local.yml points at. Building a production image requires to set these ARGs
@@ -176,7 +207,6 @@ ARG APP_URL=http://localhost:8000
 ARG DISCORD_CALLBACK=http://localhost:8000/discord/callback
 ARG EVE_CALLBACK=http://localhost:8000/eve/callback
 ARG SESSION_SECURE_COOKIE=false
-ARG SERVER_NAME=:80
 # Same default as the build stage above, so the key the server checks always matches the one the JS bundle was built with.
 ARG VITE_REVERB_APP_KEY=local
 
@@ -184,9 +214,10 @@ ENV APP_URL=${APP_URL}
 ENV DISCORD_CALLBACK=${DISCORD_CALLBACK}
 ENV EVE_CALLBACK=${EVE_CALLBACK}
 ENV REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
-ENV SERVER_NAME=${SERVER_NAME}
 ENV SESSION_SECURE_COOKIE=${SESSION_SECURE_COOKIE}
 
-CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
+# "web" is a sentinel, not a program: entrypoint.sh recognises it as the web role — the one that
+# migrates and warms caches — and replaces it with run-web.sh. Every other service in the stack
+# overrides this with its own `php artisan ...` command.
+CMD ["web"]
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-EXPOSE 80 443

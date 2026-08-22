@@ -12,10 +12,10 @@
 #   additionally baked as the runtime REVERB_APP_KEY by deploy/Dockerfile, so the server and the
 #   browser can never end up holding different keys. Note that this key is not a secret and is
 #   sent to every browser.
-# - APP_URL, SERVER_NAME, EVE_CALLBACK, DISCORD_CALLBACK and SESSION_SECURE_COOKIE are baked
-#   straight into the image as runtime ENV by deploy/Dockerfile — not build-time-only, deploy/.env
-#   deliberately has no entry for them, so nothing in the stack's config can override the domain
-#   the image was built for.
+# - APP_URL, EVE_CALLBACK, DISCORD_CALLBACK and SESSION_SECURE_COOKIE are baked straight into the
+#   image as runtime ENV by deploy/Dockerfile — not build-time-only, deploy/.env deliberately has
+#   no entry for them, so nothing in the stack's config can override the domain the image was
+#   built for.
 
 name: publish
 
@@ -31,7 +31,6 @@ env:
   APP_URL: https://mapper.prsn.online
   DISCORD_CALLBACK: https://mapper.prsn.online/discord/callback
   EVE_CALLBACK: https://mapper.prsn.online/eve/callback
-  SERVER_NAME: mapper.prsn.online
   SESSION_SECURE_COOKIE: "true"
   VITE_APP_NAME: WormholeSystems
   VITE_REVERB_APP_KEY: 82a3sonnjzgxmod8tr6x
@@ -94,7 +93,6 @@ jobs:
             APP_URL=${{ env.APP_URL }}
             DISCORD_CALLBACK=${{ env.DISCORD_CALLBACK }}
             EVE_CALLBACK=${{ env.EVE_CALLBACK }}
-            SERVER_NAME=${{ env.SERVER_NAME }}
             SESSION_SECURE_COOKIE=${{ env.SESSION_SECURE_COOKIE }}
             VITE_APP_NAME=${{ env.VITE_APP_NAME }}
             VITE_REVERB_APP_KEY=${{ env.VITE_REVERB_APP_KEY }}

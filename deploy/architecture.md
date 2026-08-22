@@ -2,18 +2,6 @@
 
 This file describes in more detail the deployment architecture and which configuration lies where.
 
-## TLS
-
-FrankenPHP embeds Caddy, so the `app` container terminates TLS itself: it takes ports 80 and 443, obtains a Let's Encrypt certificate for `SERVER_NAME`, and proxies `/app/*` to `reverb:8080` over the internal network. The websocket therefore lives on the application's own origin (`wss://mapper.prsn.online/app/<key>`) — one hostname, one certificate, one DNS record.
-
-Requirements, all checked only at runtime:
-- `mapper.prsn.online`'s DNS points at the host,
-- Ports 80 and 443 are free — the HTTP-01 challenge answers on 80, and renewals need it to stay that way.
-  `443/udp` is published too, for HTTP/3; it is the only optional one, cf. the "Network ports"
-  section of [deploy/readme.md](readme.md#network-ports),
-- The `caddy-data` volume stays mounted. It holds the issued certificate - without it every restart
-  re-requests one and the deployment hits Let's Encrypt's limit.
-
 ## Values baked into the image
 
 None of these are configurable from `deploy/.env` — they are declared in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) and take effect only when a new image is built:
@@ -21,7 +9,7 @@ None of these are configurable from `deploy/.env` — they are declared in [`.gi
 **Inlined into the JavaScript bundle by Vite:**
 
 | Build arg             | Baked value                                                    |
-|-----------------------|----------------------------------------------------------------|
+| --------------------- | -------------------------------------------------------------- |
 | `VITE_APP_NAME`       | the name in browser tab titles                                 |
 | `VITE_REVERB_HOST`    | `mapper.prsn.online`                                           |
 | `VITE_REVERB_PORT`    | `443`                                                          |
@@ -30,29 +18,27 @@ None of these are configurable from `deploy/.env` — they are declared in [`.gi
 
 All of them have a default pointing at a localhost stack, so a plain `docker build` produces a working image. `VITE_REVERB_APP_KEY` defaults to `local`, the same value `docker-compose.local.yml` uses, because an empty key stops matching Reverb's `/app/{appKey}` route and would break the websocket without any visible error.
 
-**Baked as plain runtime `ENV` by `deploy/Dockerfile`** — read by Laravel/Caddy, not by Vite:
+**Baked as plain runtime `ENV` by `deploy/Dockerfile`** — read by Laravel, not by Vite:
 
 | Build arg               | Baked value                                   |
-|-------------------------|-----------------------------------------------|
+| ----------------------- | --------------------------------------------- |
 | `APP_URL`               | `https://mapper.prsn.online`                  |
-| `SERVER_NAME`           | `mapper.prsn.online`                          |
 | `EVE_CALLBACK`          | `https://mapper.prsn.online/eve/callback`     |
 | `DISCORD_CALLBACK`      | `https://mapper.prsn.online/discord/callback` |
 | `SESSION_SECURE_COOKIE` | `true`                                        |
 
-Changing the domain in `APP_URL` alone is therefore not enough: `VITE_REVERB_HOST` would still point the browser's websocket at the old host, and `SERVER_NAME` would still request a certificate for it.
-Change the workflow's `env` block and publish a new release instead — a bare `docker run` of the published image otherwise immediately attempts an ACME certificate for `mapper.prsn.online`.
+Changing the domain in `APP_URL` alone is therefore not enough: `VITE_REVERB_HOST` would still point the browser's websocket at the old host.
+Change the workflow's `env` block and publish a new release instead.
 
-None of the keys above have an entry in `deploy/.env.example` either, and deliberately so: `env_file` values take precedence over an image's own `ENV`, so setting any of them in `deploy/.env` would silently override the baked value instead of being ignored — for `REVERB_APP_KEY` that means a desync from the browser-side copy baked into the JS bundle, breaking every websocket handshake with a pusher error 4001; for the others, a domain mismatch between Laravel/Caddy and the browser.
+`SERVER_NAME` is deliberately **not** in that table any more. The image no longer terminates TLS, so nothing in it reads that value: it is a deployment setting, supplied to the `proxy` service and overridable from `deploy/.env`. It still has to match `VITE_REVERB_HOST`, since the browser opens its websocket on the host baked into the JS bundle — so overriding it only makes sense together with an image built for the new domain.
+
+None of the *baked* keys above have an entry in `deploy/.env.example`, and deliberately so: `env_file` values take precedence over an image's own `ENV`, so setting any of them in `deploy/.env` would silently override the baked value instead of being ignored — for `REVERB_APP_KEY` that means a desync from the browser-side copy baked into the JS bundle, breaking every websocket handshake with a pusher error 4001; for the others, a domain mismatch between Laravel and the browser.
 
 ## Values fixed by the compose stack
 
 The following variables are set directly in `docker-compose.yml`'s `environment:` block rather than `deploy/.env`:
 - `BROADCAST_CONNECTION`,
 - `DB_CONNECTION`,
-- `DB_HOST`,
-- `DB_DATABASE`,
-- `DB_USERNAME`,
 - `QUEUE_CONNECTION`,
 - `CACHE_STORE`,
 - `REDIS_HOST`,
@@ -60,7 +46,44 @@ The following variables are set directly in `docker-compose.yml`'s `environment:
 - `REVERB_PORT`,
 - `REVERB_SCHEME`.
 
-They name the other services defined in that same file (`mariadb`, `redis`, `reverb`), so changing one without moving the matching service definition just breaks the stack.
+They name the other services defined in that same file (`redis`, `reverb`), so changing one without moving the matching service definition just breaks the stack.
 Unlike the group above, this one *is* safe to leave stray values for in `deploy/.env` — a Compose service's `environment:` attribute always wins over `env_file`, the opposite precedence from Dockerfile `ENV`.
 
-`APP_USER_AGENT` and `CADDY_GLOBAL_OPTIONS` are built there too, both from `CONTACT_EMAIL` — the only address `deploy/.env` still asks for by hand.
+`DB_HOST`, `DB_PORT`, `DB_DATABASE` and `DB_USERNAME` are in that same block but written as `${DB_HOST:-mariadb}` and so on, which makes them the exception: they *are* overridable from `deploy/.env`. That is what makes running without the `mariadb` profile possible at all — with a hardcoded value there, an external database could not be configured, because `environment:` beats `env_file:`.
+
+`APP_USER_AGENT` is built there too, from `CONTACT_EMAIL` — the only address `deploy/.env` still asks for by hand. `CADDY_GLOBAL_OPTIONS` is built from it as well, but on the `proxy` service, since the ACME account belongs to the proxy.
+
+## Processes in the image
+
+Every service in the stack runs the same image and the same entrypoint, and is told apart by its command:
+
+| Service             | Command                                |
+| ------------------- | -------------------------------------- |
+| `app`               | `web` (the image's `CMD`)              |
+| `queue`             | `php artisan queue:work …`             |
+| `scheduler`         | `php artisan schedule:work`            |
+| `reverb`            | `php artisan reverb:start …`           |
+| `killmail-listener` | `php artisan app:listen-for-killmails` |
+| `discord`           | `php artisan discord:listen`           |
+
+`web` is a sentinel rather than a program. `files/entrypoint.sh` recognises it as the web role — the only one that waits for the database, migrates, links `public/storage` and runs `artisan optimize` — and then replaces it with `files/run-web.sh`. Every other role skips that block, because they wait for `app` to report healthy and would otherwise migrate concurrently.
+
+The scheduler uses Laravel's own `schedule:work` rather than a cron daemon. It starts `schedule:run` at second 0 of every minute and tracks overlapping runs, which this application needs — `routes/console.php` has `everyFiveSeconds()` and `everyThirtySeconds()` tasks, so a single `schedule:run` occupies its whole minute.
+
+`files/run-web.sh` runs php-fpm and nginx as two background jobs and waits on whichever exits first, in place of a process supervisor. If either dies the container exits and `restart: unless-stopped` recycles it, rather than leaving nginx to answer 502 in front of a dead pool while still looking alive.
+
+### php-fpm and the environment
+
+`files/php-fpm.conf` replaces the pool Debian ships, and sets `clear_env = no`. That directive is load-bearing: php-fpm's default is to wipe the container's environment before the workers see it, so `APP_KEY`, `DB_HOST` and everything else from `deploy/.env` would be gone by the time Laravel reads them.
+
+In practice the entrypoint's `artisan optimize` runs under the CLI SAPI, where the environment is intact, so `bootstrap/cache/config.php` would usually hide the problem. What `clear_env = no` removes is the dependence on that: without it, a cleared or failed config cache does not fail loudly — it silently falls back to framework defaults (`DB_HOST` to `127.0.0.1`, an empty `APP_KEY`).
+
+The pool file has to *replace* `www.conf` rather than sit beside it. Two files in `pool.d/` both declaring `[www]` is a duplicate pool definition, which php-fpm refuses to start with; pools are not merged.
+
+## Waiting for the database
+
+`files/entrypoint.sh` retries a PDO connection 60 times, one second apart, before running the migrations.
+
+This is not belt-and-braces: the database is optional in this stack. `app` does declare `depends_on: mariadb: {condition: service_healthy, required: false}`, but that only bites when the `mariadb` profile is on — an instance pointed at an external server has no compose healthcheck to wait on at all, and would otherwise fail its first migration on a connection refused.
+
+`required: false` is also what makes that `depends_on` legal in the first place: compose rejects a reference to a service whose profile is disabled. It does not weaken the wait — with the profile on, `app` still blocks until `mariadb` reports healthy.
