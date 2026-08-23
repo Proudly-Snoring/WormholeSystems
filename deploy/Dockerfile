@@ -138,8 +138,7 @@ RUN rm -rf .env .env.production node_modules resources/static storage/app/privat
 # nginx + php-fpm on plain Debian, serving HTTP on port 80 and nothing else.
 #
 # There is deliberately no EXPOSE and no TLS here: this image is only ever reached from inside
-# the compose network. Certificates, the public hostname and the websocket route belong to the
-# optional proxy — cf. deploy/docker-compose.proxy.yml and deploy/files/Caddyfile.
+# the compose network.
 
 FROM debian:trixie-slim AS runtime
 

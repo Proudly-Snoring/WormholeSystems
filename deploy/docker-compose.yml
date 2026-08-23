@@ -107,9 +107,9 @@ services:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
-  # Main services (required)
+  # Optional services (behind a profile)
   # ---------------------------------------------------------------------------
-  
+
   discord:
     # Required for discord slash commands and personal Discord alerts.
     # cf. readme.md#discord_bot
@@ -200,7 +200,7 @@ services:
 
   redis:
     # The optional internal cache.
-    # Reachable only over the compose network, and therefore left without password protec tion.
+    # Reachable only over the compose network, and therefore left without password protection.
     # Every service built on the `x-app` template needs it.
     image: redis:7.2
     profiles: ["redis"]

@@ -117,7 +117,7 @@ HTTPS egress on port `443/tcp`, is needed for:
 - The Killmail archives from https://data.everef.net,
 - The EvE-Scout API (https://api.eve-scout.com),
 - The Discord API _if the bot is enabled_ (https://discord.com - subdomains included),
-- The sentry API defiend in `SENTRY_LARAVEL_DSN` (if any).
+- The sentry API defined in `SENTRY_LARAVEL_DSN` (if any).
 
 Note that you also need to be able to download the docker images from ghcr.io and the Docker Hub.
 
@@ -131,7 +131,7 @@ Note that you also need to be able to download the docker images from ghcr.io an
 
 > [!NOTE]
 > The docker/podman commands below are expected to run from inside the `deploy/` folder.
-> Else, make sure to add `-f deploy/docker-compose.yml` so docker can locate the correct compsoe file.
+> Else, make sure to add `-f deploy/docker-compose.yml` so docker can locate the correct compose file.
 
 **1. Generate the configuration** (needs `openssl`):
 ```bash
@@ -221,7 +221,7 @@ podman compose down -v
 
 To start the local stack, call compose with both files:
 ```bash
-# ℹ️ Make sure to keeps the default `COMPOSE_PROFILES=mariadb,proxy`
+# ℹ️ Make sure to keep the default `COMPOSE_PROFILES=mariadb,proxy,redis`
 # ⚠️ The files order is important! docker-compose.yml needs to be first.
 
 # With docker
@@ -239,11 +239,11 @@ The override builds the image from source as `wormholesystems:local`, points the
 For the first run, do not forget to seed the database too:
 ```bash
 # With docker
-docker compose exec -f docker-compose.yml -f docker-compose.local.yml app php artisan sde:download
-docker compose exec -f docker-compose.yml -f docker-compose.local.yml app php artisan db:seed --force
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec app php artisan sde:download
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec app php artisan db:seed --force
 # With podman
-podman compose exec -f docker-compose.yml -f docker-compose.local.yml app php artisan sde:download
-podman compose exec -f docker-compose.yml -f docker-compose.local.yml app php artisan db:seed --force
+podman compose -f docker-compose.yml -f docker-compose.local.yml exec app php artisan sde:download
+podman compose -f docker-compose.yml -f docker-compose.local.yml exec app php artisan db:seed --force
 ```
 
 ### Only build the image
@@ -357,7 +357,7 @@ docker compose exec app php artisan discord:register-commands --global
 podman compose exec app php artisan discord:register-commands --global
 ```
 
-Then add `discord` to the focker profiles (`COMPOSE_PROFILES=mariadb,...,discord`) and bring the stack back up, which now includes the bot.
+Then add `discord` to the compose profiles (`COMPOSE_PROFILES=mariadb,...,discord`) and bring the stack back up, which now includes the bot.
 
 Exactly one `discord:listen` process must run, so do not scale this service beyond one replica.
 

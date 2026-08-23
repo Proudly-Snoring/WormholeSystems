@@ -1,5 +1,4 @@
-# Caddy configuration for the optional edge proxy — cf. deploy/docker-compose.proxy.yml, which
-# bind-mounts this file.
+# Caddy configuration for the optional edge proxy (cf. deploy/docker-compose.yml).
 #
 # This is the only part of the stack that faces the internet.
 # - It terminates TLS, obtains and renews the Let's Encrypt certificate for SERVER_NAME.
@@ -18,7 +17,7 @@
 
 # `$SERVER_NAME` has no inline default on purpose:
 # - A bare port (":80") keeps Caddy on plain HTTP and skips ACME entirely (this is how docker-compose.local.yml works).
-# - A hostname switches it to ports 80/443 with a certificate (docker-compose.proxy.yml supplies one).
+# - A hostname switches it to ports 80/443 with a certificate.
 {$SERVER_NAME} {
 	# No `br`: the brotli encoder is not compiled into the official Caddy image.
 	# Adding it back means building a custom Caddy with xcaddy, which is not worth a third codec:

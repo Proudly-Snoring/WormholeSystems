@@ -5,14 +5,6 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 
 /*
- * The deployment stack terminates TLS in a separate container (deploy/docker-compose.proxy.yml)
- * and forwards plain HTTP to the application, so the X-Forwarded-* headers are the only thing
- * telling the framework what the browser actually asked for. Getting the trusted ranges wrong is
- * silent in both directions: too narrow and every URL downgrades to http://, too wide and any
- * client can spoof its own address.
- */
-
-/*
  * The probe is requested through its absolute http:// address rather than the '/_proxy-probe'
  * path: a relative URI is resolved against APP_URL, which is https in .env.example — the request
  * would then already be secure before any middleware runs, and every expectation below about an

@@ -12,7 +12,7 @@
 
 x-local-image: &local-image
   image: wormholesystems:local
-  environment: 
+  environment:
     APP_ENV: local
     APP_DEBUG: "true"
     APP_URL: "http://localhost:8000"
@@ -46,5 +46,5 @@ services:
       # Merged key by key with the base file's block, so CADDY_GLOBAL_OPTIONS survives.
       SERVER_NAME: ":80"
     ports: !override
-      # Explicitly on the loopbackto avoid exposing the instance on the local network.
+      # Explicitly on the loopback to avoid exposing the instance on the local network.
       - "127.0.0.1:8000:80"
