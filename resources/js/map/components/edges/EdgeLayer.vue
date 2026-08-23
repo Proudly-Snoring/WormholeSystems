@@ -45,16 +45,15 @@ const treeGeometries = computed<Map<number, EdgeGeometry> | null>(() => {
     if (!store.isLayoutLocked.value) return null;
 
     const edges: EdgeInput[] = [];
-    const nodeIds = new Set<number>();
     for (const connection of store.connections.values()) {
         edges.push({ id: connection.id, sourceId: connection.from_map_solarsystem_id, targetId: connection.to_map_solarsystem_id });
-        nodeIds.add(connection.from_map_solarsystem_id);
-        nodeIds.add(connection.to_map_solarsystem_id);
     }
 
+    // Every measured node, not just the connected ones: the router keeps runs out of
+    // the columns they pass, so it has to see whatever could be in the way.
     const rects = new Map<number, Rect>();
     const anchors = new Map<number, Vec2>();
-    for (const nodeId of nodeIds) {
+    for (const nodeId of store.systems.keys()) {
         const anchor = store.renderPosition(nodeId);
         if (!anchor) continue;
         anchors.set(nodeId, anchor);
