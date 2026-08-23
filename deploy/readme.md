@@ -41,7 +41,7 @@ The `proxy` profile runs the Caddy reverse proxy: it gets and renews the Let's E
 - Drop it from `COMPOSE_PROFILES` to put your own proxy in front instead (one that already serves other applications, for example).
 
 If you use an external proxy, it then has to:
-- Route `/app/*` to `reverb:8080` (the websocket) and everything else to `app:80`,
+- Route `/app/*` to `reverb:8080` (the websocket) and everything else to `app:8080`,
 - Set `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`.
 
 > [!WARNING]
@@ -366,13 +366,17 @@ Exactly one `discord:listen` process must run, so do not scale this service beyo
 
 The `Dockerfile` is used to build the main application image.
 - It's a three-stage build (composer vendor → frontend build → Debian runtime with nginx and php-fpm).
-- The image serves plain HTTP on port 80 and declares no `EXPOSE`: it is only ever reached from inside the compose network.
+- The image serves plain HTTP on port 8080 and declares no `EXPOSE`: it is only ever reached from inside the compose network.
+- Every process in it runs as `www-data` - nothing is ever root (cf. [architecture.md](architecture.md#which-user-the-application-runs-as)).
 
 Everything the Dockerfile or compose stack pulls in at build or run time lives under `deploy/files/`:
-- `files/backup.sh` — Dumps, compresses and encrypts the database. Run by the `backup` service, cf. the "Backups" section below.
-- `files/Caddyfile` — Configuration for the **optional proxy**, not for the app image. Terminates TLS and routes `/app/*` to the websocket server and everything else to the app.
-- `files/entrypoint.sh` — Runs on container start: fixes storage permissions for every role, then waits for the database, migrates, links `public/storage` and warms caches for the web process only.
-- `files/nginx.conf` — The web server inside the app container. Serves `public/`, hands the rest to php-fpm. Access logs are off by design; the proxy logs instead.
+- `files/backup.sh` — Dumps, compresses and encrypts the database.
+  Run by the `backup` service, cf. the "Backups" section below.
+- `files/Caddyfile` — Configuration for the **optional proxy**, not for the app image.
+  Terminates TLS and routes `/app/*` to the websocket server and everything else to the app.
+- `files/entrypoint.sh` — Runs on container start: creates the storage directories for every role, then waits for the database, migrates, links `public/storage` and warms caches for the web process only.
+- `files/nginx.conf` — The web server configuration for the app container (it replaces the one Debian ships).
+  Serves `public/`, hands the rest to php-fpm.
 - `files/php-fpm.conf` — The php-fpm pool, replacing the one Debian ships.
 - `files/php.ini` — Runtime PHP overrides (memory limit, upload size, execution time, opcache).
 - `files/run-web.sh` — Runs nginx and php-fpm side by side in the app container, and takes the container down if either dies.

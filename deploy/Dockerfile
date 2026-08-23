@@ -135,10 +135,12 @@ RUN rm -rf .env .env.production node_modules resources/static storage/app/privat
 # ---------------------------------------------------------------------------
 # Stage 3: runtime
 # ---------------------------------------------------------------------------
-# nginx + php-fpm on plain Debian, serving HTTP on port 80 and nothing else.
+# nginx + php-fpm on plain Debian, serving HTTP on port 8080 and nothing else.
 #
-# There is deliberately no EXPOSE and no TLS here: this image is only ever reached from inside
-# the compose network.
+# There is deliberately no EXPOSE and no TLS here: this image is only ever reached from inside the compose network.
+#
+# The whole image runs as www-data (cf. the USER at the bottom): no process, in any role, is ever root.
+# This requires to run on a port above 1024, so 8080 rather than 80 - nothing outside the compose network reaches this port anyway.
 
 FROM debian:trixie-slim AS runtime
 
@@ -173,26 +175,37 @@ RUN apt-get update \
 COPY deploy/files/php.ini /etc/php/8.4/fpm/conf.d/99-wormholesystems.ini
 COPY deploy/files/php.ini /etc/php/8.4/cli/conf.d/99-wormholesystems.ini
 COPY deploy/files/php-fpm.conf /etc/php/8.4/fpm/pool.d/www.conf
-COPY deploy/files/nginx.conf /etc/nginx/conf.d/app.conf
+COPY deploy/files/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/files/run-web.sh /usr/local/bin/run-web.sh
 COPY deploy/files/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-web.sh
 
-# Debian ships a `default_server` vhost on :80. We will replace it with our own.
-RUN rm -f /etc/nginx/sites-enabled/default
-RUN mkdir -p /run/php
+# The runtime state both daemons need to write, made writable for the unprivileged user they run as:
+# - /run/php holds the fpm socket and its pid file,
+# - /run/nginx holds the nginx pid file, in place of the root-owned /run (cf. files/nginx.conf),
+# - /var/lib/nginx holds the request/response spool files.
+RUN mkdir -p /run/php /run/nginx \
+    && chown www-data:www-data /run/php /run/nginx \
+    && chown -R www-data:www-data /var/lib/nginx
 
-# nginx logs are redirected via a symlink to stdout/stderr so the docker logs catch them.
+# Daemon logs are redirected via a symlink to stdout/stderr so the docker logs catch them.
+# This is also what keeps them writable without root — the shipped files are not.
 # NB: Access logging is off by default in files/nginx.conf.
 RUN ln -sf /dev/stderr /var/log/nginx/error.log
 RUN ln -sf /dev/stdout /var/log/nginx/access.log
+RUN ln -sf /dev/stderr /var/log/php8.4-fpm.log
 
 # Copy the built application
 COPY --from=build /app /app
 
-# Prepare application directories
-RUN mkdir -p /app/storage/framework/sessions /app/storage/framework/views /app/storage/framework/cache /app/storage/logs /app/bootstrap/cache
-RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache
+# Prepare application directories.
+# Everything the application writes to has to be owned by www-data:
+# - storage/ and bootstrap/cache/ are the usual Laravel writable trees.
+# - public/ itself (not its contents) because `artisan storage:link --force` recreates the symlink inside it on every web start.
+# - resources/static because the scheduler's daily `generate:static-data` writes there.
+RUN mkdir -p /app/storage/framework/sessions /app/storage/framework/views /app/storage/framework/cache /app/storage/logs /app/bootstrap/cache /app/resources/static
+RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache /app/resources/static
+RUN chown www-data:www-data /app/public
 
 # The below env are frozen into the image rather than left in deploy/.env: the websocket host is
 # already baked in via VITE_REVERB_* above and can't be repointed at runtime, so a differing
@@ -214,6 +227,8 @@ ENV DISCORD_CALLBACK=${DISCORD_CALLBACK}
 ENV EVE_CALLBACK=${EVE_CALLBACK}
 ENV REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
 ENV SESSION_SECURE_COOKIE=${SESSION_SECURE_COOKIE}
+
+USER www-data
 
 # "web" is a sentinel, not a program: entrypoint.sh recognises it as the web role — the one that
 # migrates and warms caches — and replaces it with run-web.sh. Every other service in the stack

@@ -56,13 +56,13 @@ services:
 
   app:
     # Main application server.
-    # Serve static and PHP files with nginx + php-fpm on plain HTTP port 80, reachable only from the compose network.
+    # Serve static and PHP files with nginx + php-fpm on plain HTTP port 8080, reachable only from the compose network.
     # Use a generous start period because nothing answers until entrypoint.sh is done:
     # on a first boot that means the whole migration set before the web server even starts.
     <<: *app
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://127.0.0.1/up"]
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8080/up"]
       interval: 10s
       timeout: 5s
       retries: 5

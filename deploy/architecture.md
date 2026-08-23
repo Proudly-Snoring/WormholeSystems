@@ -72,6 +72,25 @@ The scheduler uses Laravel's own `schedule:work` rather than a cron daemon. It s
 
 `files/run-web.sh` runs php-fpm and nginx as two background jobs and waits on whichever exits first, in place of a process supervisor. If either dies the container exits and `restart: unless-stopped` recycles it, rather than leaving nginx to answer 502 in front of a dead pool while still looking alive.
 
+### Which user the application runs as
+
+`www-data`, everywhere, from PID 1 — the image declares `USER www-data` and nothing in it is ever root: not the entrypoint, not the nginx or php-fpm masters, not a `docker compose exec`.
+
+This is uniform on purpose. All six services mount the same `laravel-storage` volume and log through the `daily` channel, which creates `storage/logs/laravel-<date>.log` owned by whichever process logs first, mode `0644`. Leave a single role as root and the day's file can appear root-owned at the midnight rollover, after which every other container is locked out of its own log until the next restart. One user removes that class of bug rather than managing it.
+
+Running unprivileged costs three things, all handled in the `Dockerfile`:
+
+- **The web port is 8080, not 80.** Ports below 1024 need root to bind. Nothing outside the compose network reaches this port — the proxy connects to `app:8080` — so the number is free to change.
+- **Runtime state moves out of root-owned directories.** `/run/php` (the fpm socket and pid) and `/run/nginx` (the nginx pid, in place of the unwritable `/run/nginx.pid`) are created and chowned at build time, `/var/lib/nginx` likewise for the spool files. `/var/log/php8.4-fpm.log` is symlinked to stderr, which both makes it writable and puts it in `docker logs`.
+- **Everything the application writes to is chowned at build time**, because no process can chown at runtime anymore: `storage/`, `bootstrap/cache/`, `resources/static` (the scheduler's daily `generate:static-data`) and `public/` itself, whose directory `artisan storage:link --force` needs to recreate the symlink in.
+
+`storage/` being www-data-owned *in the image* is also what makes the volume work: Docker seeds a fresh named volume from the image directory it is mounted over, ownership included.
+
+Neither daemon is told which user to run as: php-fpm's `user`/`group` and nginx's `user` are only honoured by a master that starts as root, and here neither does — both simply inherit `www-data`. `files/php-fpm.conf` drops those directives, and `files/nginx.conf` replaces Debian's whole configuration rather than being included by it, which is also what moves the nginx pid file out of the root-owned `/run` (a `pid` directive belongs to the main context, so there is no way to override it from an included file).
+
+> [!WARNING]
+> A `laravel-storage` volume created by an image older than this change holds root-owned files, and nothing in the stack can fix them anymore. Upgrading such a deployment needs a one-time chown — cf. [readme.md](readme.md#upgrading-from-an-image-that-ran-as-root).
+
 ### php-fpm and the environment
 
 `files/php-fpm.conf` replaces the pool Debian ships, and sets `clear_env = no`. That directive is load-bearing: php-fpm's default is to wipe the container's environment before the workers see it, so `APP_KEY`, `DB_HOST` and everything else from `deploy/.env` would be gone by the time Laravel reads them.

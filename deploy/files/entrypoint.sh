@@ -9,10 +9,8 @@ if [ -z "${CONTACT_EMAIL:-}" ]; then
 fi
 
 # Every service (app, queue, scheduler, reverb, killmail-listener, discord) shares
-# this image and entrypoint, and all of them write to the same `storage`
-# volume, so permissions are fixed up regardless of role.
+# this image and entrypoint, and all of them write to the same `storage` volume.
 mkdir -p storage/app/public storage/framework/sessions storage/framework/views storage/framework/cache storage/logs bootstrap/cache
-chown -R www-data:www-data storage bootstrap/cache
 
 wait_for_database() {
 	attempt=1
