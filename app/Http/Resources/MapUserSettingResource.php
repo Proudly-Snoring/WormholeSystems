@@ -39,6 +39,7 @@ final class MapUserSettingResource extends JsonResource
             'preselect_signature_enabled' => $this->preselect_signature_enabled ?? false,
             'suggest_alias_enabled' => $this->suggest_alias_enabled,
             'copy_bookmark_enabled' => $this->copy_bookmark_enabled,
+            'follow_character_enabled' => $this->follow_character_enabled,
             'layout_breakpoints' => $this->layout_breakpoints,
             'hidden_cards' => $this->hidden_cards ?? [],
             'show_threat_level' => $this->show_threat_level,
