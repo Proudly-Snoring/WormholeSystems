@@ -25,6 +25,8 @@ use function sprintf;
  * @property int $id
  * @property string $name
  * @property bool $is_public
+ * @property MapLayout $layout
+ * @property bool $allow_layout_override
  * @property bool $constant_width_enabled
  * @property string|null $share_token
  * @property int|null $home_solarsystem_id
@@ -46,7 +48,7 @@ use function sprintf;
  * @property-read Collection<int,MapWebhookRole> $mapWebhookRoles
  * @property-read Collection<int,MapAlert> $mapAlerts
  * @property-read null|MapUserSetting $mapUserSetting
- * @property-read MapAccess $mapOwner
+ * @property-read MapAccess|null $mapOwner
  */
 final class Map extends Model
 {
