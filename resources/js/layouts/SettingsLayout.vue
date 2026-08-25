@@ -5,6 +5,7 @@ import MapIgnoredSolarsystemController from '@/actions/App/Http/Controllers/MapI
 import MapPreferencesController from '@/actions/App/Http/Controllers/MapPreferencesController';
 import MapRoutingSettingsController from '@/actions/App/Http/Controllers/MapRoutingSettingsController';
 import MapSettingsController from '@/actions/App/Http/Controllers/MapSettingsController';
+import MapTransferController from '@/actions/App/Http/Controllers/MapTransferController';
 import DiscordIcon from '@/components/icons/DiscordIcon.vue';
 import { Button } from '@/components/ui/button';
 import usePermission from '@/composables/usePermission';
@@ -12,7 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import SeoHead from '@/layouts/SeoHead.vue';
 import { TMapSummary } from '@/pages/maps';
 import { Link, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Crosshair, Route, Settings, User, Users } from 'lucide-vue-next';
+import { ArrowLeft, ArrowLeftRight, Crosshair, Route, Settings, User, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {
@@ -80,6 +81,16 @@ const navigationItems = computed(() => {
             href: MapDiscordController.show(props.map.slug),
             icon: DiscordIcon,
             description: 'Alerts, delivery, and oversight',
+        });
+    }
+
+    // Transfer - Manager+ only
+    if (canManageAccess.value) {
+        items.push({
+            name: 'Import / Export',
+            href: MapTransferController.show(props.map.slug),
+            icon: ArrowLeftRight,
+            description: 'Move map data in and out',
         });
     }
 

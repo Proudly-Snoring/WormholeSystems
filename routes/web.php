@@ -25,6 +25,7 @@ use App\Http\Controllers\MapConnectionJumpController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapDiscordController;
 use App\Http\Controllers\MapIgnoredSolarsystemController;
+use App\Http\Controllers\MapImportController;
 use App\Http\Controllers\MapLayoutController;
 use App\Http\Controllers\MapPreferencesController;
 use App\Http\Controllers\MapRouteSolarsystemController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\MapSearchController;
 use App\Http\Controllers\MapSelectionController;
 use App\Http\Controllers\MapSettingsController;
 use App\Http\Controllers\MapSolarsystemController;
+use App\Http\Controllers\MapTransferController;
 use App\Http\Controllers\MapUserSettingController;
 use App\Http\Controllers\MapWebhookController;
 use App\Http\Controllers\MapWebhookRoleController;
@@ -94,7 +96,13 @@ Route::middleware('auth')->group(function () {
         Route::get('mapping', [MapIgnoredSolarsystemController::class, 'show'])->name('mapping.show');
 
         Route::get('discord', [MapDiscordController::class, 'show'])->name('discord.show');
+
+        Route::get('transfer', [MapTransferController::class, 'show'])->name('transfer.show');
+        Route::get('transfer/export', [MapTransferController::class, 'export'])->name('transfer.export');
+        Route::post('transfer/import', [MapTransferController::class, 'import'])->name('transfer.import');
     });
+
+    Route::post('maps/import', [MapImportController::class, 'store'])->name('maps.import.store');
 
     Route::delete('logout', [AuthController::class, 'destroy'])->name('logout');
 
