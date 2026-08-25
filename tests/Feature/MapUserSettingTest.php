@@ -258,3 +258,20 @@ it('persists the compact signature list setting', function () {
         ->value('compact_signature_list')
     )->toBeTruthy();
 });
+
+it('persists the follow character setting', function () {
+    $map = Map::factory()->create();
+    $user = User::factory()->ownsMap($map)->create();
+
+    actingAs($user);
+
+    $this->put(route('maps.user-settings.update', $map), [
+        'follow_character_enabled' => true,
+    ])->assertRedirect();
+
+    expect(MapUserSetting::query()
+        ->where('user_id', $user->id)
+        ->where('map_id', $map->id)
+        ->value('follow_character_enabled')
+    )->toBeTruthy();
+});

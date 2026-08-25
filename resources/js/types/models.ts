@@ -289,6 +289,7 @@ export type TMapUserSetting = {
     preselect_signature_enabled: boolean;
     suggest_alias_enabled: boolean;
     copy_bookmark_enabled: boolean;
+    follow_character_enabled: boolean;
     layout_breakpoints?: Record<string, any> | null;
     hidden_cards: string[] | null;
     show_threat_level: boolean;
