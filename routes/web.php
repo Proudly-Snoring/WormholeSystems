@@ -26,6 +26,7 @@ use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapDiscordController;
 use App\Http\Controllers\MapIgnoredSolarsystemController;
 use App\Http\Controllers\MapLayoutController;
+use App\Http\Controllers\MapMaintainerSettingsController;
 use App\Http\Controllers\MapPreferencesController;
 use App\Http\Controllers\MapRouteSolarsystemController;
 use App\Http\Controllers\MapRoutingSettingsController;
@@ -94,6 +95,8 @@ Route::middleware('auth')->group(function () {
         Route::get('mapping', [MapIgnoredSolarsystemController::class, 'show'])->name('mapping.show');
 
         Route::get('discord', [MapDiscordController::class, 'show'])->name('discord.show');
+
+        Route::put('maintainer', [MapMaintainerSettingsController::class, 'update'])->name('maintainer.update');
     });
 
     Route::delete('logout', [AuthController::class, 'destroy'])->name('logout');
