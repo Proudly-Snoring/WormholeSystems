@@ -51,6 +51,7 @@ final readonly class PasteSignaturesAction
                     'signature_id' => $signature->signature_id,
                     'signature_category_id' => $signature->signature_category_id,
                     'signature_type_id' => $signature->signature_type_id,
+                    'is_anomaly' => $signature->is_anomaly,
                 ];
 
                 if (! ($signature->raw_type_name instanceof Optional)) {
@@ -82,6 +83,7 @@ final readonly class PasteSignaturesAction
                     'map_connection_id' => $map_connection_id,
                     'wormhole_id' => $wormhole_id,
                     'raw_type_name' => $raw_type_name,
+                    'is_anomaly' => $signature->is_anomaly,
                 ]);
 
                 $this->syncConnectionShipSizeAction->handle($existing_signature);

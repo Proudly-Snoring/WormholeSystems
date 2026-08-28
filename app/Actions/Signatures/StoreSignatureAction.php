@@ -46,6 +46,7 @@ final readonly class StoreSignatureAction
                 'signature_type_id' => $signature_type_id,
                 'wormhole_id' => $wormhole_id,
                 'raw_type_name' => $raw_type_name,
+                'is_anomaly' => $data->is_anomaly,
             ]);
 
             $this->syncConnectionShipSizeAction->handle($signature);
