@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Signature model representing a signature in the game.
  *
  * @property int $id
- * @property string $signature_id
+ * @property string|null $signature_id
  * @property int $map_solarsystem_id
  * @property int|null $map_connection_id
  * @property int|null $wormhole_id

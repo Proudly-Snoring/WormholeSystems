@@ -8,12 +8,15 @@ use App\Actions\MapConnections\SyncConnectionShipSizeAction;
 use App\Data\NewSignatureData;
 use App\Data\RawSignatureData;
 use App\Data\SignaturesData;
+use App\Enums\SignatureActivityAction;
+use App\Models\Character;
 use App\Models\MapSolarsystem;
 use App\Models\Signature;
 use App\Models\SignatureCategory;
 use App\Models\SignatureType;
 use App\Support\Broadcasting\MapBroadcaster;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Spatie\LaravelData\Optional;
 use Throwable;
@@ -27,6 +30,7 @@ final readonly class PasteSignaturesAction
         public UpdateSignatureAction $updateSignatureAction,
         private MapBroadcaster $mapBroadcaster,
         private SyncConnectionShipSizeAction $syncConnectionShipSizeAction,
+        private RecordSignatureActivityAction $recordSignatureActivityAction,
     ) {
         $this->wormholeCategory = SignatureCategory::query()->firstWhere('code', \App\Enums\SignatureCategory::Wormhole);
     }
@@ -36,9 +40,9 @@ final readonly class PasteSignaturesAction
      *
      * @throws Throwable
      */
-    public function handle(SignaturesData $data): void
+    public function handle(SignaturesData $data, ?Character $actor = null): void
     {
-        DB::transaction(function () use ($data): void {
+        DB::transaction(function () use ($data, $actor): void {
             $map_solarsystem = MapSolarsystem::query()->findOrFail($data->map_solarsystem_id);
             $signatures = collect($data->signatures);
             $existing_signatures = $map_solarsystem->signatures;
@@ -46,7 +50,7 @@ final readonly class PasteSignaturesAction
             $new_signatures = $signatures->filter(fn (RawSignatureData $signature): bool => $existing_signatures->firstWhere('signature_id', $signature->signature_id) === null);
             $updated_signatures = $signatures->filter(fn (RawSignatureData $signature): bool => $existing_signatures->firstWhere('signature_id', $signature->signature_id) !== null);
 
-            $new_signatures->each(function (RawSignatureData $signature) use ($map_solarsystem): Signature {
+            $new_signatures->each(function (RawSignatureData $signature) use ($map_solarsystem, $actor): Signature {
                 $data = [
                     'signature_id' => $signature->signature_id,
                     'signature_category_id' => $signature->signature_category_id,
@@ -62,10 +66,11 @@ final readonly class PasteSignaturesAction
                     $map_solarsystem,
                     NewSignatureData::from($data),
                     without_signatures_changed_event: true,
+                    actor: $actor,
                 );
             });
 
-            $updated_signatures->each(function (RawSignatureData $signature) use ($existing_signatures): void {
+            $updated_signatures->each(function (RawSignatureData $signature) use ($existing_signatures, $actor): void {
                 $existing_signature = $this->getExistingSignature($existing_signatures, $signature->signature_id);
 
                 $signature_category_id = $signature->signature_category_id ?? $existing_signature->signature_category_id;
@@ -86,7 +91,16 @@ final readonly class PasteSignaturesAction
                     'is_anomaly' => $signature->is_anomaly,
                 ]);
 
+                // Snapshot before syncConnectionShipSizeAction(), which writes to the signature
+                // itself when it is a typed, connected signature -- capturing after it would
+                // score a point for a re-paste that changed nothing the user typed.
+                $changed = Arr::except($existing_signature->getChanges(), ['updated_at']);
+
                 $this->syncConnectionShipSizeAction->handle($existing_signature);
+
+                if ($changed !== []) {
+                    $this->recordSignatureActivityAction->handle($existing_signature, $actor, SignatureActivityAction::Updated);
+                }
             });
 
             // A paste of N signatures emits a single counts event for the system.
