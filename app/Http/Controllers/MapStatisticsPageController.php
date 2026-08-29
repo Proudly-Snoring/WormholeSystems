@@ -33,7 +33,7 @@ final class MapStatisticsPageController extends Controller
      */
     public function show(Request $request, Map $map): Response
     {
-        Gate::authorize('viewCharacters', $map);
+        Gate::authorize('viewLeaderboard', $map);
 
         $period = $this->resolveMaintainerPeriod($request);
 

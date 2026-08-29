@@ -311,9 +311,9 @@ const settingsUrl = computed(() => {
             </TooltipContent>
         </Tooltip>
 
-        <!-- Leaderboard (member+ only) -->
+        <!-- Leaderboard (authenticated users only) -->
         <Link
-            v-if="canEdit"
+            v-if="$page.props.auth.user"
             :href="MapStatisticsPageController.show(map.slug)"
             class="flex items-center gap-1.5 rounded bg-muted px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground sm:px-2"
             prefetch

@@ -24,7 +24,7 @@ final class MapStatisticsController extends Controller
 
     public function aggregated(Request $request, Map $map): JsonResponse
     {
-        Gate::authorize('viewCharacters', $map);
+        Gate::authorize('viewLeaderboard', $map);
 
         $period = $this->resolveMaintainerPeriod($request);
 
@@ -35,7 +35,7 @@ final class MapStatisticsController extends Controller
 
     public function details(Request $request, Map $map): JsonResponse
     {
-        Gate::authorize('viewCharacters', $map);
+        Gate::authorize('viewLeaderboard', $map);
 
         $period = $this->resolveMaintainerPeriod($request);
 

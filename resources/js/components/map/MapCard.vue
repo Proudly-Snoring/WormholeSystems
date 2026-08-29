@@ -44,7 +44,7 @@ const open = ref(false);
 const isArchived = computed(() => Boolean(map.map_user_setting?.is_archived));
 const isPinned = computed(() => Boolean(map.map_user_setting?.is_pinned));
 const trackingAllowed = computed(() => Boolean(map.map_user_setting?.tracking_allowed));
-const canViewLeaderboard = computed(() => map.role !== null && map.role !== 'viewer');
+const canViewLeaderboard = computed(() => map.role !== null);
 
 const roleMeta: Record<NonNullable<TMapSummary['role']>, { label: string; icon: Component; class: string }> = {
     owner: { label: 'Owner', icon: Crown, class: 'border-amber-500/30 bg-amber-500/10 text-amber-500' },

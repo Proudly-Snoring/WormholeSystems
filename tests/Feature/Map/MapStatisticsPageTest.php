@@ -66,10 +66,21 @@ it('shows a member the leaderboard page with the expected props', function () {
             ->etc());
 });
 
-it('forbids a viewer from seeing the leaderboard page', function () {
+it('allows a viewer to see the leaderboard page', function () {
     $map = Map::factory()->create();
+    User::factory()->ownsMap($map)->create();
 
     actingAs(statisticsPageUser($map, Permission::Viewer))
+        ->get(route('maps.leaderboard.show', $map))
+        ->assertSuccessful();
+});
+
+it('forbids a user with no access to the map from seeing the leaderboard page', function () {
+    $map = Map::factory()->create();
+    User::factory()->ownsMap($map)->create();
+    $user = User::factory()->create();
+
+    actingAs($user)
         ->get(route('maps.leaderboard.show', $map))
         ->assertForbidden();
 });

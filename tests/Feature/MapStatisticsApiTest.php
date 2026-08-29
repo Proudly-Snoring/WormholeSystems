@@ -77,13 +77,13 @@ it('returns the details shape, including the data wrapper, for a member', functi
         ]);
 });
 
-it('forbids a viewer from reading the stats endpoints', function (string $route) {
+it('allows a viewer to read the stats endpoints', function (string $route) {
     $map = Map::factory()->create()->fresh();
     $user = statsUser($map, Permission::Viewer);
 
     actingAs($user)
         ->getJson(route($route, $map))
-        ->assertForbidden();
+        ->assertSuccessful();
 })->with([
     'aggregated' => ['api.maps.stats.aggregated'],
     'details' => ['api.maps.stats.details'],
@@ -97,9 +97,9 @@ it('rejects an unauthenticated request to a public map instead of returning data
 });
 
 it('forbids an authenticated user with no map access from reading a public map\'s stats', function () {
-    // Decision #6 regression: the stats endpoints gate on `viewCharacters` (Member+),
-    // not `view` -- `view` admits anonymous share-token/public-map visitors, but the
-    // stats endpoints must not, since they expose character names and per-alt points.
+    // The stats endpoints gate on `viewLeaderboard` (any accessor row, viewer+), not
+    // `view` -- `view` admits anonymous share-token/public-map visitors, but the stats
+    // endpoints must not, since they expose character names and per-alt points.
     $map = Map::factory()->create(['is_public' => true])->fresh();
     $user = User::factory()->create();
 
