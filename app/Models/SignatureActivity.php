@@ -7,7 +7,6 @@ namespace App\Models;
 use App\Enums\SignatureActivityAction;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * A single historical record of a character creating, updating or deleting a signature,
@@ -22,8 +21,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property SignatureActivityAction $action
  * @property CarbonImmutable $activity_date
  * @property CarbonImmutable $created_at
- * @property-read Map $map
- * @property-read Character $character
  */
 final class SignatureActivity extends Model
 {
@@ -34,20 +31,4 @@ final class SignatureActivity extends Model
         'activity_date' => 'immutable_date',
         'created_at' => 'immutable_datetime',
     ];
-
-    /**
-     * @return BelongsTo<Map,$this>
-     */
-    public function map(): BelongsTo
-    {
-        return $this->belongsTo(Map::class);
-    }
-
-    /**
-     * @return BelongsTo<Character,$this>
-     */
-    public function character(): BelongsTo
-    {
-        return $this->belongsTo(Character::class);
-    }
 }
