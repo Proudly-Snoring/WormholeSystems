@@ -54,3 +54,26 @@ it('defaults a manually created signature (no scan group) to is_anomaly = false'
 
     expect($signature->fresh()->is_anomaly)->toBeFalse();
 });
+
+it('keeps an existing signature\'s is_anomaly flag when a paste payload omits the field', function () {
+    $map = Map::factory()->create();
+    $system = placeMapSolarsystem($map, 30011023);
+
+    app(PasteSignaturesAction::class)->handle(SignaturesData::from([
+        'map_solarsystem_id' => $system->id,
+        'signatures' => [
+            ['signature_id' => 'AAA-111', 'is_anomaly' => true],
+        ],
+    ]));
+
+    expect($system->signatures()->where('signature_id', 'AAA-111')->first()->is_anomaly)->toBeTrue();
+
+    app(PasteSignaturesAction::class)->handle(SignaturesData::from([
+        'map_solarsystem_id' => $system->id,
+        'signatures' => [
+            ['signature_id' => 'AAA-111'],
+        ],
+    ]));
+
+    expect($system->signatures()->where('signature_id', 'AAA-111')->first()->is_anomaly)->toBeTrue();
+});

@@ -238,6 +238,26 @@ it('records nothing when updating or deleting an anomaly signature', function ()
     expect(SignatureActivity::query()->count())->toBe(0);
 });
 
+it('does not score a point when a paste omitting is_anomaly re-pastes an existing anomaly', function () {
+    $map = Map::factory()->create();
+    $system = placeMapSolarsystem($map, 30013021);
+    $actor = Character::factory()->create();
+
+    app(PasteSignaturesAction::class)->handle(SignaturesData::from([
+        'map_solarsystem_id' => $system->id,
+        'signatures' => [['signature_id' => 'AAA-111', 'is_anomaly' => true]],
+    ]), actor: $actor);
+
+    expect(SignatureActivity::query()->count())->toBe(0);
+
+    app(PasteSignaturesAction::class)->handle(SignaturesData::from([
+        'map_solarsystem_id' => $system->id,
+        'signatures' => [['signature_id' => 'AAA-111']],
+    ]), actor: $actor);
+
+    expect(SignatureActivity::query()->count())->toBe(0);
+});
+
 it('does not record an updated row when re-pasting an unchanged scan', function () {
     $map = Map::factory()->create();
     $system = placeMapSolarsystem($map, 30013013);

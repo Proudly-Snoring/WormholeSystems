@@ -55,11 +55,16 @@ final readonly class PasteSignaturesAction
                     'signature_id' => $signature->signature_id,
                     'signature_category_id' => $signature->signature_category_id,
                     'signature_type_id' => $signature->signature_type_id,
-                    'is_anomaly' => $signature->is_anomaly,
                 ];
 
                 if (! ($signature->raw_type_name instanceof Optional)) {
                     $data['raw_type_name'] = $signature->raw_type_name;
+                }
+
+                // Omitted -> let NewSignatureData apply its own default (false): there is no
+                // prior row whose flag could be clobbered.
+                if (! ($signature->is_anomaly instanceof Optional)) {
+                    $data['is_anomaly'] = $signature->is_anomaly;
                 }
 
                 return $this->storeSignatureAction->handle(
@@ -82,13 +87,17 @@ final readonly class PasteSignaturesAction
 
                 $wormhole_id = $this->getNewWormholeId($signature_type_id);
 
+                // Omitted -> keep the existing flag, same as every other field above: a paste
+                // that doesn't say "is_anomaly" must not silently clear it.
+                $is_anomaly = $signature->is_anomaly instanceof Optional ? $existing_signature->is_anomaly : $signature->is_anomaly;
+
                 $existing_signature->update([
                     'signature_category_id' => $signature_category_id,
                     'signature_type_id' => $signature_type_id,
                     'map_connection_id' => $map_connection_id,
                     'wormhole_id' => $wormhole_id,
                     'raw_type_name' => $raw_type_name,
-                    'is_anomaly' => $signature->is_anomaly,
+                    'is_anomaly' => $is_anomaly,
                 ]);
 
                 // Snapshot before syncConnectionShipSizeAction(), which writes to the signature
