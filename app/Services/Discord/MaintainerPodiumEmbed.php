@@ -32,7 +32,7 @@ final readonly class MaintainerPodiumEmbed
 
         return [
             'title' => sprintf('Maintainer Podium — %s', $period->label()),
-            'url' => route('maps.settings.statistics.show', [$alert->map, 'period' => $period->toString()]),
+            'url' => route('maps.leaderboard.show', [$alert->map, 'period' => $period->toString()]),
             'description' => $shown->isEmpty()
                 ? 'Nobody qualified for the leaderboard this month.'
                 : $shown->map(fn (MaintainerEntry $entry): string => $this->line($entry))->implode("\n"),
@@ -41,7 +41,7 @@ final readonly class MaintainerPodiumEmbed
                     'name' => 'Full list',
                     'value' => sprintf(
                         '[See the full leaderboard](%s)',
-                        route('maps.settings.statistics.show', [$alert->map, 'period' => $period->toString()]),
+                        route('maps.leaderboard.show', [$alert->map, 'period' => $period->toString()]),
                     ),
                 ],
             ] : [],

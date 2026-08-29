@@ -37,7 +37,7 @@ final class MapStatisticsPageController extends Controller
 
         $period = $this->resolveMaintainerPeriod($request);
 
-        return Inertia::render('maps/settings/ShowStatistics', [
+        return Inertia::render('maps/ShowLeaderboard', [
             'map' => $map->toResource(MapInfoResource::class),
             'is_owner' => Gate::allows('delete', $map),
             'permission' => $map->getUserPermission($this->user)?->value,

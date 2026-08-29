@@ -52,10 +52,10 @@ it('shows a member the leaderboard page with the expected props', function () {
     recordStatisticsPageActivity($map, $character);
 
     actingAs($user)
-        ->get(route('maps.settings.statistics.show', $map))
+        ->get(route('maps.leaderboard.show', $map))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('maps/settings/ShowStatistics')
+            ->component('maps/ShowLeaderboard')
             ->where('period', '2026-07')
             ->where('permission', 'member')
             ->has('available_periods', 13)
@@ -70,7 +70,7 @@ it('forbids a viewer from seeing the leaderboard page', function () {
     $map = Map::factory()->create();
 
     actingAs(statisticsPageUser($map, Permission::Viewer))
-        ->get(route('maps.settings.statistics.show', $map))
+        ->get(route('maps.leaderboard.show', $map))
         ->assertForbidden();
 });
 
@@ -79,7 +79,7 @@ it('offers exactly 13 selectable periods, newest first', function () {
     User::factory()->ownsMap($map)->create();
 
     actingAs(statisticsPageUser($map, Permission::Member))
-        ->get(route('maps.settings.statistics.show', $map))
+        ->get(route('maps.leaderboard.show', $map))
         ->assertInertia(fn (Assert $page) => $page
             ->has('available_periods', 13)
             ->where('available_periods.0.value', '2026-07')
@@ -91,6 +91,6 @@ it('404s a period outside the selectable window', function () {
     $map = Map::factory()->create();
 
     actingAs(statisticsPageUser($map, Permission::Member))
-        ->get(route('maps.settings.statistics.show', $map).'?period=2019-01')
+        ->get(route('maps.leaderboard.show', $map).'?period=2019-01')
         ->assertNotFound();
 });

@@ -5,7 +5,6 @@ import MapIgnoredSolarsystemController from '@/actions/App/Http/Controllers/MapI
 import MapPreferencesController from '@/actions/App/Http/Controllers/MapPreferencesController';
 import MapRoutingSettingsController from '@/actions/App/Http/Controllers/MapRoutingSettingsController';
 import MapSettingsController from '@/actions/App/Http/Controllers/MapSettingsController';
-import MapStatisticsPageController from '@/actions/App/Http/Controllers/MapStatisticsPageController';
 import DiscordIcon from '@/components/icons/DiscordIcon.vue';
 import { Button } from '@/components/ui/button';
 import usePermission from '@/composables/usePermission';
@@ -13,7 +12,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import SeoHead from '@/layouts/SeoHead.vue';
 import { TMapSummary } from '@/pages/maps';
 import { Link, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Crosshair, Route, Settings, Trophy, User, Users } from 'lucide-vue-next';
+import { ArrowLeft, Crosshair, Route, Settings, User, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {
@@ -25,7 +24,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const page = usePage();
-const { canEdit, canManageAccess } = usePermission();
+const { canManageAccess } = usePermission();
 
 const navigationItems = computed(() => {
     const items = [];
@@ -81,16 +80,6 @@ const navigationItems = computed(() => {
             href: MapDiscordController.show(props.map.slug),
             icon: DiscordIcon,
             description: 'Alerts, delivery, and oversight',
-        });
-    }
-
-    // Leaderboard - Member+ only (the page itself authorizes viewCharacters)
-    if (canEdit.value) {
-        items.push({
-            name: 'Leaderboard',
-            href: MapStatisticsPageController.show(props.map.slug),
-            icon: Trophy,
-            description: 'Monthly maintainer ranking',
         });
     }
 

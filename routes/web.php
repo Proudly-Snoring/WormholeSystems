@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('discord', [DiscordAccountController::class, 'destroy'])->name('discord.destroy');
 
     Route::get('maps/{map}/ping', [PingController::class, 'show'])->name('maps.ping');
+    Route::get('maps/{map}/leaderboard', [MapStatisticsPageController::class, 'show'])->name('maps.leaderboard.show');
     Route::resource('maps', MapController::class)->except(['show', 'create'])->names([
         'index' => 'home',
         'store' => 'maps.store',
@@ -98,8 +99,6 @@ Route::middleware('auth')->group(function () {
         Route::get('discord', [MapDiscordController::class, 'show'])->name('discord.show');
 
         Route::put('maintainer', [MapMaintainerSettingsController::class, 'update'])->name('maintainer.update');
-
-        Route::get('statistics', [MapStatisticsPageController::class, 'show'])->name('statistics.show');
     });
 
     Route::delete('logout', [AuthController::class, 'destroy'])->name('logout');
