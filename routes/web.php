@@ -35,6 +35,7 @@ use App\Http\Controllers\MapSearchController;
 use App\Http\Controllers\MapSelectionController;
 use App\Http\Controllers\MapSettingsController;
 use App\Http\Controllers\MapSolarsystemController;
+use App\Http\Controllers\MapStatisticsPageController;
 use App\Http\Controllers\MapUserSettingController;
 use App\Http\Controllers\MapWebhookController;
 use App\Http\Controllers\MapWebhookRoleController;
@@ -97,6 +98,8 @@ Route::middleware('auth')->group(function () {
         Route::get('discord', [MapDiscordController::class, 'show'])->name('discord.show');
 
         Route::put('maintainer', [MapMaintainerSettingsController::class, 'update'])->name('maintainer.update');
+
+        Route::get('statistics', [MapStatisticsPageController::class, 'show'])->name('statistics.show');
     });
 
     Route::delete('logout', [AuthController::class, 'destroy'])->name('logout');
