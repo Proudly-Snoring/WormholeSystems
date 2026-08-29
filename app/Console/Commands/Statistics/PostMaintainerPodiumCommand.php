@@ -6,6 +6,8 @@ namespace App\Console\Commands\Statistics;
 
 use App\Actions\Statistics\FinalizeMaintainerReportAction;
 use App\Console\Commands\AppCommand;
+use App\DTO\MaintainerEntry;
+use App\DTO\MaintainerSettings;
 use App\Enums\MapAlertType;
 use App\Models\Map;
 use App\Models\MapAlert;
@@ -92,7 +94,12 @@ final class PostMaintainerPodiumCommand extends AppCommand
         }
 
         $entries = $this->reader->aggregated($map, $period);
-        $embed = $this->embedBuilder->build($alerts->first(), $period, $entries);
+        $settings = MaintainerSettings::fromArray($report->payload['settings']);
+        $qualifying = $entries
+            ->filter(fn (MaintainerEntry $entry): bool => $entry->points >= $settings->minimum_points)
+            ->values();
+
+        $embed = $this->embedBuilder->build($alerts->first(), $period, $qualifying, $entries->count());
 
         foreach ($alerts as $alert) {
             $this->delivery->deliver($alert, $embed);

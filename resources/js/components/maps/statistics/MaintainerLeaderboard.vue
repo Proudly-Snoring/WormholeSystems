@@ -25,7 +25,7 @@ function totals(entry: TMaintainerEntry): { added: number; edited: number; delet
 
 <template>
     <div v-if="entries.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-        Nobody has reached the minimum points for this period yet.
+        Nobody has scored any points this period yet.
     </div>
     <ul v-else class="divide-y divide-border/60">
         <li v-for="entry in entries" :key="entry.position" class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">

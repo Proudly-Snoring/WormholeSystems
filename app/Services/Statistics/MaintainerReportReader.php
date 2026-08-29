@@ -7,7 +7,6 @@ namespace App\Services\Statistics;
 use App\Actions\Statistics\FinalizeMaintainerReportAction;
 use App\DTO\MaintainerCharacterStat;
 use App\DTO\MaintainerEntry;
-use App\DTO\MaintainerSettings;
 use App\Models\Map;
 use App\Models\MapMaintainerReport;
 use Illuminate\Database\QueryException;
@@ -49,12 +48,7 @@ final readonly class MaintainerReportReader
             return $this->leaderboard->aggregated($map, $period);
         }
 
-        $report = $this->reportFor($map, $period);
-
-        return $this->leaderboard->aggregate(
-            $this->statsFromReport($report),
-            MaintainerSettings::fromArray($report->payload['settings']),
-        );
+        return $this->leaderboard->aggregate($this->statsFromReport($this->reportFor($map, $period)));
     }
 
     private function reportFor(Map $map, MaintainerPeriod $period): MapMaintainerReport

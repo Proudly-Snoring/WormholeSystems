@@ -292,7 +292,7 @@ function copyShareLink() {
                         </div>
 
                         <div>
-                            <Label for="maintainer-minimum-points" class="text-sm font-medium">Minimum points to appear on the leaderboard</Label>
+                            <Label for="maintainer-minimum-points" class="text-sm font-medium">Minimum points to appear in the Discord recap</Label>
                             <Input
                                 id="maintainer-minimum-points"
                                 type="number"

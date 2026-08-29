@@ -25,25 +25,25 @@ final readonly class MaintainerLeaderboard
     }
 
     /**
-     * Grouped by user, threshold applied, sorted by points descending.
+     * Grouped by user, zero-point entries dropped, sorted by points descending. The map's
+     * minimum-points threshold is a Discord-recap-only cutoff applied by the caller, not here.
      *
      * @return Collection<int, MaintainerEntry>
      */
     public function aggregated(Map $map, MaintainerPeriod $period): Collection
     {
-        return $this->aggregate($this->details($map, $period), MaintainerSettings::fromMap($map));
+        return $this->aggregate($this->details($map, $period));
     }
 
     /**
-     * Pure grouping/threshold/position derivation over an already-computed stat collection --
-     * used both for the live path (fed the map's current settings) and the stored path (fed
-     * a finalized report's frozen settings), so both are provably identical. The only DB
-     * access here is the single preferred-character lookup below.
+     * Pure grouping/position derivation over an already-computed stat collection -- used both
+     * for the live path and the stored path, so both are provably identical. The only DB access
+     * here is the single preferred-character lookup below.
      *
      * @param  Collection<int, MaintainerCharacterStat>  $stats
      * @return Collection<int, MaintainerEntry>
      */
-    public function aggregate(Collection $stats, MaintainerSettings $settings): Collection
+    public function aggregate(Collection $stats): Collection
     {
         $userIds = $stats->pluck('user_id')->filter()->unique()->values();
 
@@ -71,7 +71,7 @@ final readonly class MaintainerLeaderboard
                     'characters' => $characters->values()->all(),
                 ];
             })
-            ->filter(fn (array $entry): bool => $entry['points'] >= $settings->minimum_points)
+            ->filter(fn (array $entry): bool => $entry['points'] >= 1)
             ->values()
             ->all();
 

@@ -130,23 +130,37 @@ it('falls back to the top-scoring alt when the preferred character scored nothin
     expect($entry->display_name)->toBe('Active Alt');
 });
 
-it('excludes below-threshold characters and includes exactly-at-threshold ones', function () {
+it('ignores the map\'s minimum-points threshold -- everyone who scored appears', function () {
     $map = Map::factory()->create([
         'maintainer_points_created' => 1,
-        'maintainer_minimum_points' => 2,
+        'maintainer_minimum_points' => 100,
     ])->fresh();
-    $below = Character::factory()->create();
-    $atThreshold = Character::factory()->create();
+    $character = Character::factory()->create();
     $at = CarbonImmutable::parse('2026-06-10', 'UTC');
 
-    recordMaintainerActivity($map, $below, SignatureActivityAction::Created, $at, 1);
-    recordMaintainerActivity($map, $atThreshold, SignatureActivityAction::Created, $at, 2);
-    recordMaintainerActivity($map, $atThreshold, SignatureActivityAction::Created, $at, 3);
+    recordMaintainerActivity($map, $character, SignatureActivityAction::Created, $at, 1);
 
     $entries = $this->leaderboard->aggregated($map, $this->period);
 
     expect($entries)->toHaveCount(1)
-        ->and($entries->first()->characters[0]->character_id)->toBe((int) $atThreshold->id);
+        ->and($entries->first()->points)->toBe(1);
+});
+
+it('excludes a character with zero points from the aggregated leaderboard', function () {
+    $map = Map::factory()->create([
+        'maintainer_points_created' => 0,
+        'maintainer_points_updated' => 0,
+        'maintainer_points_deleted' => 0,
+        'maintainer_minimum_points' => 0,
+    ])->fresh();
+    $character = Character::factory()->create();
+    $at = CarbonImmutable::parse('2026-06-10', 'UTC');
+
+    recordMaintainerActivity($map, $character, SignatureActivityAction::Created, $at, 1);
+
+    $entries = $this->leaderboard->aggregated($map, $this->period);
+
+    expect($entries)->toHaveCount(0);
 });
 
 it('gives a disassociated character its own entry', function () {

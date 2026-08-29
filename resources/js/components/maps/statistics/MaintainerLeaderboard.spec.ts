@@ -32,7 +32,7 @@ describe('MaintainerLeaderboard', () => {
     it('shows an empty state when nobody qualifies', () => {
         const wrapper = mount(MaintainerLeaderboard, { props: { entries: [] } });
 
-        expect(wrapper.text()).toContain('Nobody has reached the minimum points');
+        expect(wrapper.text()).toContain('Nobody has scored any points this period yet');
         expect(wrapper.findAll('li').length).toBe(0);
     });
 

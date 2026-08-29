@@ -12,6 +12,10 @@ final readonly class MaintainerSettings
         public int $points_created,
         public int $points_updated,
         public int $points_deleted,
+        /**
+         * Discord-recap-only cutoff. The leaderboard page and API list every scorer
+         * regardless of this value; only PostMaintainerPodiumCommand applies it.
+         */
         public int $minimum_points,
     ) {}
 

@@ -146,7 +146,63 @@ it('still posts a valid embed when nobody qualifies', function () {
     $this->artisan('app:post-maintainer-podium')->assertSuccessful();
 
     Http::assertSentCount(1);
-    Http::assertSent(fn ($request): bool => $request->data()['embeds'][0]['description'] === 'Nobody qualified for the leaderboard this month.');
+    Http::assertSent(fn ($request): bool => $request->data()['embeds'][0]['description'] === 'Nobody reached the minimum points for this month\'s recap.');
+});
+
+it('excludes a sub-threshold scorer from the Discord podium', function () {
+    $map = podiumMap(['maintainer_minimum_points' => 2]);
+    podiumAlert($map);
+
+    $below = Character::factory()->create(['name' => 'Below Threshold']);
+    $above = Character::factory()->create(['name' => 'Above Threshold']);
+    recordCreated($map, $below, '2026-06-10');
+    SignatureActivity::query()->create([
+        'map_id' => $map->id,
+        'character_id' => $above->id,
+        'signature_id' => random_int(1, 1_000_000_000),
+        'solarsystem_id' => 30000001,
+        'dedupe_key' => 'pk:'.$above->id.':1',
+        'action' => SignatureActivityAction::Created,
+        'activity_date' => '2026-06-10',
+        'created_at' => CarbonImmutable::parse('2026-06-10', 'UTC'),
+    ]);
+    SignatureActivity::query()->create([
+        'map_id' => $map->id,
+        'character_id' => $above->id,
+        'signature_id' => random_int(1, 1_000_000_000),
+        'solarsystem_id' => 30000001,
+        'dedupe_key' => 'pk:'.$above->id.':2',
+        'action' => SignatureActivityAction::Created,
+        'activity_date' => '2026-06-11',
+        'created_at' => CarbonImmutable::parse('2026-06-11', 'UTC'),
+    ]);
+
+    Http::fake();
+    $this->artisan('app:post-maintainer-podium')->assertSuccessful();
+
+    Http::assertSent(function ($request) use ($below, $above): bool {
+        $description = $request->data()['embeds'][0]['description'];
+
+        return str_contains($description, $above->name)
+            && ! str_contains($description, $below->name);
+    });
+});
+
+it('adds a full-list link when a sub-threshold scorer is excluded, even under the 10-line cap', function () {
+    $map = podiumMap(['maintainer_minimum_points' => 2]);
+    podiumAlert($map);
+
+    recordCreated($map, Character::factory()->create(), '2026-06-10');
+
+    Http::fake();
+    $this->artisan('app:post-maintainer-podium')->assertSuccessful();
+
+    Http::assertSent(function ($request): bool {
+        $embed = $request->data()['embeds'][0];
+
+        return $embed['description'] === 'Nobody reached the minimum points for this month\'s recap.'
+            && ($embed['fields'][0]['name'] ?? null) === 'Full list';
+    });
 });
 
 it('does not post twice when run twice for the same period', function () {

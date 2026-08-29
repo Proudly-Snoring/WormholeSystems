@@ -193,7 +193,7 @@ it('reads a past period from the stored report rather than recomputing it', func
     expect($second)->toBe($first);
 });
 
-it('includes a sub-threshold character in details for a stored past period', function () {
+it('includes a sub-threshold character in both aggregated and details for a stored past period', function () {
     $map = Map::factory()->create([
         'maintainer_points_created' => 1,
         'maintainer_minimum_points' => 5,
@@ -204,7 +204,7 @@ it('includes a sub-threshold character in details for a stored past period', fun
     actingAs($user)
         ->getJson(route('api.maps.stats.aggregated', ['map' => $map, 'period' => '2026-06']))
         ->assertSuccessful()
-        ->assertJsonCount(0, 'data');
+        ->assertJsonCount(1, 'data');
 
     actingAs($user)
         ->getJson(route('api.maps.stats.details', ['map' => $map, 'period' => '2026-06']))

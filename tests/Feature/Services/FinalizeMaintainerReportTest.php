@@ -66,7 +66,7 @@ it('stores the payload and freezes it against later weight changes, for both det
         ->and($aggregated->sole()->points)->toBe(1);
 });
 
-it('excludes a sub-threshold character from aggregated but keeps it in details for a stored period', function () {
+it('includes a sub-threshold character in both details and aggregated for a stored period', function () {
     $map = Map::factory()->create([
         'maintainer_points_created' => 1,
         'maintainer_minimum_points' => 5,
@@ -87,10 +87,10 @@ it('excludes a sub-threshold character from aggregated but keeps it in details f
     $this->action->handle($map, $this->period);
 
     expect($this->reader->details($map, $this->period))->toHaveCount(1)
-        ->and($this->reader->aggregated($map, $this->period))->toHaveCount(0);
+        ->and($this->reader->aggregated($map, $this->period))->toHaveCount(1);
 });
 
-it('does not add anyone to a stored period after lowering the threshold', function () {
+it('keeps a sub-threshold scorer visible in a stored period regardless of later threshold changes', function () {
     $map = Map::factory()->create([
         'maintainer_points_created' => 1,
         'maintainer_minimum_points' => 5,
@@ -110,9 +110,11 @@ it('does not add anyone to a stored period after lowering the threshold', functi
 
     $this->action->handle($map, $this->period);
 
-    $map->update(['maintainer_minimum_points' => 0]);
+    expect($this->reader->aggregated($map, $this->period))->toHaveCount(1);
 
-    expect($this->reader->aggregated($map->fresh(), $this->period))->toHaveCount(0);
+    $map->update(['maintainer_minimum_points' => 100]);
+
+    expect($this->reader->aggregated($map->fresh(), $this->period))->toHaveCount(1);
 });
 
 it('does not blow up on a contributor with a null character name', function () {
