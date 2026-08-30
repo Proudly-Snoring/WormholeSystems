@@ -24,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('signatures', function (Blueprint $table): void {
-            //
+            $table->dropColumn('is_anomaly');
         });
     }
 };
