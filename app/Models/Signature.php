@@ -8,7 +8,10 @@ use App\Enums\LifetimeStatus;
 use App\Enums\MassStatus;
 use App\Enums\ShipSize;
 use Carbon\CarbonImmutable;
+use Database\Factories\SignatureFactory;
 use DateTimeImmutable;
+use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -36,8 +39,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read SignatureType|null $signatureType
  * @property-read SignatureCategory|null $signatureCategory
  */
+#[UseFactory(SignatureFactory::class)]
 final class Signature extends Model
 {
+    /** @use HasFactory<SignatureFactory> */
+    use HasFactory;
+
     protected $casts = [
         'created_at' => 'immutable_datetime',
         'updated_at' => 'immutable_datetime',

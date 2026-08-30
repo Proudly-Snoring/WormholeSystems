@@ -25,6 +25,7 @@ use App\Http\Controllers\MapConnectionJumpController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapDiscordController;
 use App\Http\Controllers\MapIgnoredSolarsystemController;
+use App\Http\Controllers\MapImportController;
 use App\Http\Controllers\MapLayoutController;
 use App\Http\Controllers\MapMaintainerSettingsController;
 use App\Http\Controllers\MapPreferencesController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\MapSelectionController;
 use App\Http\Controllers\MapSettingsController;
 use App\Http\Controllers\MapSolarsystemController;
 use App\Http\Controllers\MapStatisticsPageController;
+use App\Http\Controllers\MapTransferController;
 use App\Http\Controllers\MapUserSettingController;
 use App\Http\Controllers\MapWebhookController;
 use App\Http\Controllers\MapWebhookRoleController;
@@ -88,18 +90,18 @@ Route::middleware('auth')->group(function () {
         Route::post('home-system', [HomeSystemController::class, 'store'])->name('home-system');
         Route::post('rally-point', [RallyPointController::class, 'store'])->name('rally-point');
         Route::get('preferences', [MapPreferencesController::class, 'show'])->name('preferences.show');
-
         Route::get('access', [MapAccessController::class, 'show'])->name('access.show');
         Route::post('access', [MapAccessController::class, 'store'])->name('access.store');
-
         Route::get('routing', [MapRoutingSettingsController::class, 'show'])->name('routing.show');
-
         Route::get('mapping', [MapIgnoredSolarsystemController::class, 'show'])->name('mapping.show');
-
         Route::get('discord', [MapDiscordController::class, 'show'])->name('discord.show');
-
         Route::put('maintainer', [MapMaintainerSettingsController::class, 'update'])->name('maintainer.update');
+        Route::get('transfer', [MapTransferController::class, 'show'])->name('transfer.show');
+        Route::get('transfer/export', [MapTransferController::class, 'export'])->name('transfer.export');
+        Route::post('transfer/import', [MapTransferController::class, 'import'])->name('transfer.import');
     });
+
+    Route::post('maps/import', [MapImportController::class, 'store'])->name('maps.import.store');
 
     Route::delete('logout', [AuthController::class, 'destroy'])->name('logout');
 

@@ -27,6 +27,7 @@ final readonly class MapSettingsFeature implements ProvidesInertiaProperties
         'preselect_signature_enabled' => false,
         'suggest_alias_enabled' => false,
         'copy_bookmark_enabled' => false,
+        'follow_character_enabled' => false,
         'layout_breakpoints' => null,
         'hidden_cards' => null,
         'show_threat_level' => true,
