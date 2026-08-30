@@ -8,7 +8,10 @@ use App\Enums\LifetimeStatus;
 use App\Enums\MassStatus;
 use App\Enums\ShipSize;
 use Carbon\CarbonImmutable;
+use Database\Factories\SignatureFactory;
 use DateTimeImmutable;
+use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,13 +19,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Signature model representing a signature in the game.
  *
  * @property int $id
- * @property string $signature_id
+ * @property string|null $signature_id
  * @property int $map_solarsystem_id
  * @property int|null $map_connection_id
  * @property int|null $wormhole_id
  * @property int|null $signature_type_id
  * @property int|null $signature_category_id
  * @property string|null $raw_type_name
+ * @property bool $is_anomaly
  * @property MassStatus|null $mass_status
  * @property LifetimeStatus $lifetime
  * @property DateTimeImmutable|string|null $lifetime_updated_at
@@ -35,8 +39,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read SignatureType|null $signatureType
  * @property-read SignatureCategory|null $signatureCategory
  */
+#[UseFactory(SignatureFactory::class)]
 final class Signature extends Model
 {
+    /** @use HasFactory<SignatureFactory> */
+    use HasFactory;
+
     protected $casts = [
         'created_at' => 'immutable_datetime',
         'updated_at' => 'immutable_datetime',
@@ -44,6 +52,7 @@ final class Signature extends Model
         'ship_size' => ShipSize::class,
         'lifetime' => LifetimeStatus::class,
         'lifetime_updated_at' => 'immutable_datetime',
+        'is_anomaly' => 'boolean',
     ];
 
     /**

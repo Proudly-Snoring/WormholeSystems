@@ -10,7 +10,13 @@ type TrackingOptions = {
     ship_size?: TShipSize | null;
 };
 
-export function createTracking(from_map_solarsystem_id: number, to_solarsystem_id: number, options: TrackingOptions = {}): void {
+export function createTracking(
+    from_map_solarsystem_id: number,
+    to_solarsystem_id: number,
+    options: TrackingOptions = {},
+    /** Runs once the jumped-into system is on the map, for callers that need to act on it. */
+    onSuccess?: () => void,
+): void {
     return router.post(
         Tracking.store().url,
         {
@@ -22,6 +28,7 @@ export function createTracking(from_map_solarsystem_id: number, to_solarsystem_i
             preserveScroll: true,
             preserveState: true,
             only: ['map', 'map_navigation', 'selected_map_solarsystem'],
+            onSuccess: () => onSuccess?.(),
             onError: () => router.reload({ only: ['map'] }),
         },
     );

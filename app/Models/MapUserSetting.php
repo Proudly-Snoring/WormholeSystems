@@ -33,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $preselect_signature_enabled
  * @property bool $suggest_alias_enabled
  * @property bool $copy_bookmark_enabled
+ * @property bool $follow_character_enabled
  * @property array|null $layout_breakpoints
  * @property array|null $hidden_cards
  * @property bool $show_threat_level
@@ -85,6 +86,7 @@ final class MapUserSetting extends Model
             'preselect_signature_enabled' => 'boolean',
             'suggest_alias_enabled' => 'boolean',
             'copy_bookmark_enabled' => 'boolean',
+            'follow_character_enabled' => 'boolean',
             'layout_breakpoints' => 'array',
             'hidden_cards' => 'array',
             'show_threat_level' => 'boolean',

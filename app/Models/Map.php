@@ -25,6 +25,8 @@ use function sprintf;
  * @property int $id
  * @property string $name
  * @property bool $is_public
+ * @property MapLayout $layout
+ * @property bool $allow_layout_override
  * @property bool $constant_width_enabled
  * @property string|null $share_token
  * @property int|null $home_solarsystem_id
@@ -34,6 +36,10 @@ use function sprintf;
  * @property string $bookmark_format_return
  * @property AliasScheme $bookmark_alias_scheme
  * @property string $bookmark_ignored_alias
+ * @property int $maintainer_points_created
+ * @property int $maintainer_points_updated
+ * @property int $maintainer_points_deleted
+ * @property int $maintainer_minimum_points
  * @property-read string|CarbonImmutable $created_at
  * @property-read string|CarbonImmutable $updated_at
  * @property-read Collection<int,MapSolarsystem> $mapSolarsystems
@@ -46,7 +52,7 @@ use function sprintf;
  * @property-read Collection<int,MapWebhookRole> $mapWebhookRoles
  * @property-read Collection<int,MapAlert> $mapAlerts
  * @property-read null|MapUserSetting $mapUserSetting
- * @property-read MapAccess $mapOwner
+ * @property-read MapAccess|null $mapOwner
  */
 final class Map extends Model
 {
