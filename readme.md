@@ -13,15 +13,17 @@ This repository is a fork of [WormholeSystems/WormholeSystems](https://github.co
 
 We try to maintain compatibility with the base repo and merge our improvement there, but there are subtle differences here and there.
 
-## Self-hosting
+## Deployment
 
-To run your own instance you don't need this repository directly — use the [container stack](https://github.com/WormholeSystems/wormholesystems-containers) with its interactive setup wizard:
+[`deploy/`](deploy/) is Proudly Snoring's own deployment stack for **mapper.prsn.online** — a Dockerfile plus a compose file holding the application, an optional database, and an optional Caddy reverse proxy that terminates TLS. Drop either optional profile to use a database or a proxy you already run. See [`deploy/readme.md`](deploy/readme.md).
 
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://install.wormhole.systems | sh
-```
+Every [GitHub release](https://github.com/Proudly-Snoring/WormholeSystems/releases) publishes a versioned image built from it to `ghcr.io/proudly-snoring/wormholesystems`, tagged with the release version, plus `latest` (unless the release is marked as a prerelease). See [contributing.md](contributing.md#release-process) for how the release workflow itself works.
 
-The rest of this README is about developing the application itself.
+> [!IMPORTANT]
+> **That image is built for `mapper.prsn.online` and cannot serve another domain.** The websocket host, port, scheme and app key the browser uses are inlined into the JavaScript bundle by Vite at build time, so they are fixed once the image exists — no amount of `.env` changes moves them.
+>
+> To host this yourself, build your own image with your own domain in the build args (they are declared in [`.github/workflows/publish.yml`](.github/workflows/publish.yml)).
+> `deploy/` is a working example of how the pieces fit together, but it is not written as a general-purpose template: it hardcodes this instance's hostname and callbacks.
 
 ## Development setup
 
@@ -160,18 +162,6 @@ php artisan discord:listen
 - **Discord linking fails** → Client ID/Secret and callback URL match the Discord application exactly.
 - **Slash commands are missing** → Install the application with `applications.commands`, then register commands globally or against `DISCORD_TEST_GUILD_ID`.
 - **Discord alerts are not delivered** → Bot process and queue worker running? Check channel permissions and the configured bot token.
-
-## Deployment
-
-[`deploy/`](deploy/) is Proudly Snoring's own deployment stack for **mapper.prsn.online** — a Dockerfile plus a compose file holding the application, an optional database, and an optional Caddy reverse proxy that terminates TLS. Drop either optional profile to use a database or a proxy you already run. See [`deploy/readme.md`](deploy/readme.md).
-
-Every [GitHub release](https://github.com/Proudly-Snoring/WormholeSystems/releases) publishes a versioned image built from it to `ghcr.io/proudly-snoring/wormholesystems`, tagged with the release version, plus `latest` (unless the release is marked as a prerelease). See [contributing.md](contributing.md#release-process) for how the release workflow itself works.
-
-> [!IMPORTANT]
-> **That image is built for `mapper.prsn.online` and cannot serve another domain.** The websocket host, port, scheme and app key the browser uses are inlined into the JavaScript bundle by Vite at build time, so they are fixed once the image exists — no amount of `.env` changes moves them.
->
-> To host this yourself, build your own image with your own domain in the build args (they are declared in [`.github/workflows/publish.yml`](.github/workflows/publish.yml)).
-> `deploy/` is a working example of how the pieces fit together, but it is not written as a general-purpose template: it hardcodes this instance's hostname and callbacks.
 
 ## Contributing
 
