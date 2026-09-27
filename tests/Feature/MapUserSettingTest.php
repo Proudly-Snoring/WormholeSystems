@@ -258,3 +258,52 @@ it('persists the compact signature list setting', function () {
         ->value('compact_signature_list')
     )->toBeTruthy();
 });
+
+it('persists the follow character setting', function () {
+    $map = Map::factory()->create();
+    $user = User::factory()->ownsMap($map)->create();
+
+    actingAs($user);
+
+    $this->put(route('maps.user-settings.update', $map), [
+        'follow_character_enabled' => true,
+    ])->assertRedirect();
+
+    expect(MapUserSetting::query()
+        ->where('user_id', $user->id)
+        ->where('map_id', $map->id)
+        ->value('follow_character_enabled')
+    )->toBeTruthy();
+});
+
+it('routes through wormhole connections by default', function () {
+    $map = Map::factory()->create(['is_public' => true]);
+    User::factory()->ownsMap($map)->create();
+
+    $this->withoutExceptionHandling()
+        ->get(route('maps.show', $map))
+        ->assertSuccessful()
+        ->assertInertia(fn ($page) => $page
+            ->has('map_user_settings', fn ($settings) => $settings
+                ->where('route_use_wormholes', true)
+                ->etc()
+            )
+        );
+});
+
+it('persists excluding wormhole connections from routing', function () {
+    $map = Map::factory()->create();
+    $user = User::factory()->ownsMap($map)->create();
+
+    actingAs($user);
+
+    $this->put(route('maps.user-settings.update', $map), [
+        'route_use_wormholes' => false,
+    ])->assertRedirect();
+
+    expect(MapUserSetting::query()
+        ->where('user_id', $user->id)
+        ->where('map_id', $map->id)
+        ->value('route_use_wormholes')
+    )->toBeFalsy();
+});

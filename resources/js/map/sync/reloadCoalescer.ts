@@ -18,7 +18,10 @@ type CoalescerOptions = {
  */
 export function createReloadCoalescer(options: CoalescerOptions = {}): ReloadCoalescer {
     const delayMs = options.delayMs ?? 150;
-    const reload = options.reload ?? ((props: string[]) => router.reload({ only: props }));
+    // preserveUrl: these are prop-only refreshes triggered by broadcasts; they must
+    // never touch the URL. Without it a reload captured with a stale URL can land
+    // after a navigation and revert it (e.g. reverting the follow selection).
+    const reload = options.reload ?? ((props: string[]) => router.reload({ only: props, preserveUrl: true }));
 
     const pending = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | null = null;

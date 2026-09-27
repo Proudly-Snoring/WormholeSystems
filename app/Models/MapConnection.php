@@ -31,10 +31,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|ConnectionType $type
  * @property bool $preserve_mass
  * @property string|MassStatus $mass_status
- * @property string|ShipSize $ship_size
+ * @property string|ShipSize|null $ship_size
  * @property LifetimeStatus $lifetime
  * @property DateTimeImmutable|string|null $lifetime_updated_at
- * @property CarbonImmutable $connected_at
+ * @property CarbonImmutable|null $connected_at
  * @property-read string|CarbonImmutable $created_at
  * @property-read string|CarbonImmutable $updated_at
  * @property-read MapSolarsystem $fromMapSolarsystem
@@ -106,6 +106,8 @@ final class MapConnection extends Model
 
     /**
      * The wormhole associated with this connection.
+     *
+     * @return BelongsTo<Wormhole, $this>
      */
     public function wormhole(): BelongsTo
     {

@@ -82,7 +82,10 @@ final readonly class EnsureOrganisationExistsAction
                     'member_count' => $corp_data->member_count,
                     'shares' => $corp_data->shares,
                     'tax_rate' => $corp_data->tax_rate,
-                    'date_founded' => $corp_data->date_founded,
+                    // ESI reports NPC corporations with an empty founding
+                    // date rather than omitting it, and an empty string is
+                    // not a datetime MySQL will accept in strict mode.
+                    'date_founded' => $corp_data->date_founded ?: null,
                     'creator_id' => $corp_data->creator_id,
                     'last_updated' => now(),
                     'unresolvable_at' => null,
@@ -156,7 +159,7 @@ final readonly class EnsureOrganisationExistsAction
                     'faction_id' => $alliance_data->faction_id,
                     'creator_id' => $alliance_data->creator_id,
                     'creator_corporation_id' => $alliance_data->creator_corporation_id,
-                    'date_founded' => $alliance_data->date_founded,
+                    'date_founded' => $alliance_data->date_founded ?: null,
                     'last_updated' => now(),
                     'unresolvable_at' => null,
                 ]

@@ -93,7 +93,9 @@ final class UpdateAffiliations implements ShouldQueue
                 'shares' => $corp_data->shares,
                 'tax_rate' => $corp_data->tax_rate,
                 'home_station_id' => $corp_data->home_station_id,
-                'date_founded' => $corp_data->date_founded,
+                // See EnsureOrganisationExistsAction: NPC corporations come
+                // back with an empty founding date, not a null one.
+                'date_founded' => $corp_data->date_founded ?: null,
                 'creator_id' => $corp_data->creator_id,
                 'last_updated' => now(),
             ]
@@ -144,7 +146,7 @@ final class UpdateAffiliations implements ShouldQueue
                 'ticker' => $alliance_data->ticker,
                 'faction_id' => $alliance_data->faction_id,
                 'creator_id' => $alliance_data->creator_id,
-                'date_founded' => $alliance_data->date_founded,
+                'date_founded' => $alliance_data->date_founded ?: null,
                 'last_updated' => now(),
             ]
         );

@@ -281,6 +281,7 @@ export type TMapUserSetting = {
     route_allow_lifetime_status: TLifetimeStatus;
     route_allow_mass_status: TMassStatus;
     route_use_evescout: boolean;
+    route_use_wormholes: boolean;
     route_preference: TRoutePreference;
     security_penalty: number;
     killmail_filter: 'all' | 'jspace' | 'kspace';
@@ -289,6 +290,7 @@ export type TMapUserSetting = {
     preselect_signature_enabled: boolean;
     suggest_alias_enabled: boolean;
     copy_bookmark_enabled: boolean;
+    follow_character_enabled: boolean;
     layout_breakpoints?: Record<string, any> | null;
     hidden_cards: string[] | null;
     show_threat_level: boolean;

@@ -9,7 +9,9 @@ import { buildSignatureBookmark } from '@/lib/bookmark';
 import { groupSignatureOptions } from '@/lib/signatureCompatibility';
 import { isWormholeSystem } from '@/lib/solarsystem';
 import { createTracking, updateMapUserSettings, useMapSolarsystems } from '@/map/api';
+import { show } from '@/routes/maps';
 import { TLifetimeStatus, TMassStatus, TShipSize, TSignature } from '@/types/models';
+import { router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 
@@ -87,6 +89,25 @@ export function useTracking() {
         },
     );
 
+    // Follow the pilot: select the system the character jumped into, so the
+    // signature panel and details follow it.
+    //
+    // Always called once the system is known to be on the map — either it
+    // already was, or the tracking request that added it has come back. That
+    // ordering matters: the requests a jump fires off (the tracking lookup, the
+    // tracking POST) carry the pre-jump URL, and whichever lands last decides
+    // what the page URL is. Selecting after them, rather than racing them, is
+    // what keeps the selection from being reverted.
+    function followInto(solarsystem_id: number) {
+        if (!map_user_settings.value.follow_character_enabled) return;
+
+        router.visit(show(page.props.map.slug, { mergeQuery: { solarsystem_id } }).url, {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['map', 'selected_map_solarsystem', 'map_navigation', 'map_characters', 'eve_scout_connections', 'threat_analysis'],
+        });
+    }
+
     function handleSolarsystemJump(old_solarsystem_id: number | null, new_solarsystem_id: number) {
         if (isIgnored(new_solarsystem_id)) return;
         const old_map_solarsystem = map_solarsystems.value.find((s) => s.solarsystem_id === old_solarsystem_id);
@@ -106,12 +127,22 @@ export function useTracking() {
     }
 
     function performJump() {
-        if (existing_connection.value?.map_connection_id) return;
-        const gate_connected = isGateConnected(origin_map_solarsystem.value?.solarsystem_id, target_solarsystem.value?.id);
-        if (gate_connected || !possible_signatures.value.length || !map_user_settings.value.prompt_for_signature_enabled) {
-            return createTracking(origin_map_solarsystem.value!.id, target_solarsystem.value!.id);
+        const target_solarsystem_id = target_solarsystem.value!.id;
+
+        // Already connected: the system is on the map, nothing to wait for.
+        if (existing_connection.value?.map_connection_id) {
+            followInto(target_solarsystem_id);
+
+            return;
         }
 
+        const gate_connected = isGateConnected(origin_map_solarsystem.value?.solarsystem_id, target_solarsystem.value?.id);
+        if (gate_connected || !possible_signatures.value.length || !map_user_settings.value.prompt_for_signature_enabled) {
+            return createTracking(origin_map_solarsystem.value!.id, target_solarsystem_id, {}, () => followInto(target_solarsystem_id));
+        }
+
+        // The dialog defers the tracking request until the scout picks a
+        // signature, so following waits for that path instead.
         show_signature_modal.value = true;
     }
 
@@ -120,6 +151,14 @@ export function useTracking() {
 
         updateMapUserSettings(page.props.map.slug, {
             is_tracking: !map_user_settings.value.is_tracking,
+        });
+    }
+
+    const follow_enabled = computed(() => map_user_settings.value.follow_character_enabled);
+
+    function handleToggleFollow() {
+        updateMapUserSettings(page.props.map.slug, {
+            follow_character_enabled: !map_user_settings.value.follow_character_enabled,
         });
     }
 
@@ -132,14 +171,22 @@ export function useTracking() {
     }) {
         show_signature_modal.value = false;
         if (!origin_map_solarsystem.value || !target_solarsystem.value) return;
+
+        const target_solarsystem_id = target_solarsystem.value.id;
+
         copyConnectionBookmark(selection.signatureId, selection.alias);
-        createTracking(origin_map_solarsystem.value.id, target_solarsystem.value.id, {
-            signature_id: selection.signatureId,
-            alias: selection.alias,
-            lifetime: selection.lifetime,
-            mass_status: selection.massStatus,
-            ship_size: selection.shipSize,
-        });
+        createTracking(
+            origin_map_solarsystem.value.id,
+            target_solarsystem_id,
+            {
+                signature_id: selection.signatureId,
+                alias: selection.alias,
+                lifetime: selection.lifetime,
+                mass_status: selection.massStatus,
+                ship_size: selection.shipSize,
+            },
+            () => followInto(target_solarsystem_id),
+        );
     }
 
     // Copy the connection bookmark for the system we just jumped into, using the
@@ -176,6 +223,8 @@ export function useTracking() {
 
     return {
         toggle: handleToggle,
+        toggle_follow: handleToggleFollow,
+        follow_enabled,
         is_tracking,
         is_tracking_allowed,
         can_track,

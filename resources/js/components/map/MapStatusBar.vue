@@ -20,7 +20,7 @@ import type { TMapUserSetting } from '@/types/models';
 import { Link } from '@inertiajs/vue3';
 import { useConnectionStatus } from '@laravel/echo-vue';
 import { ConnectionStatus } from 'laravel-echo';
-import { AlertTriangle, Eye, EyeOff, LayoutGrid, Map as MapIcon, Settings, ShieldAlert, Wifi, WifiOff } from 'lucide-vue-next';
+import { AlertTriangle, Eye, EyeOff, LayoutGrid, LocateFixed, Map as MapIcon, Settings, ShieldAlert, Wifi, WifiOff } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import CommandPaletteButton from './CommandPaletteButton.vue';
 import TrackingSignatureDialog from './TrackingSignatureDialog.vue';
@@ -46,6 +46,8 @@ const currentSolarsystem = useStaticSolarsystem(() => character.value?.status?.s
 // Tracking
 const {
     toggle: toggleTracking,
+    toggle_follow: toggleFollow,
+    follow_enabled,
     is_tracking,
     is_tracking_allowed,
     can_track,
@@ -260,6 +262,26 @@ const settingsUrl = computed(() => {
                     <p class="text-xs font-medium">Auto-Tracking</p>
                     <p class="text-xs text-muted-foreground">{{ is_tracking ? 'Enabled' : 'Disabled' }} - Track system changes</p>
                 </template>
+            </TooltipContent>
+        </Tooltip>
+
+        <!-- Follow Toggle -->
+        <Tooltip v-if="canEdit">
+            <TooltipTrigger as-child>
+                <button
+                    @click="toggleFollow"
+                    class="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs transition-colors sm:px-2"
+                    :class="follow_enabled ? 'bg-sky-500/20 text-sky-400 hover:bg-sky-500/30' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                >
+                    <LocateFixed class="size-3.5" />
+                    <span class="hidden md:inline">Follow</span>
+                </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+                <p class="text-xs font-medium">Follow Pilot</p>
+                <p class="text-xs text-muted-foreground">
+                    {{ follow_enabled ? 'Enabled' : 'Disabled' }} - Select the system your character jumps into
+                </p>
             </TooltipContent>
         </Tooltip>
 
