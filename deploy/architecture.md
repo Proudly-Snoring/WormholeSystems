@@ -82,9 +82,11 @@ Running unprivileged costs three things, all handled in the `Dockerfile`:
 
 - **The web port is 8080, not 80.** Ports below 1024 need root to bind. Nothing outside the compose network reaches this port — the proxy connects to `app:8080` — so the number is free to change.
 - **Runtime state moves out of root-owned directories.** `/run/php` (the fpm socket and pid) and `/run/nginx` (the nginx pid, in place of the unwritable `/run/nginx.pid`) are created and chowned at build time, `/var/lib/nginx` likewise for the spool files. `/var/log/php8.4-fpm.log` is symlinked to stderr, which both makes it writable and puts it in `docker logs`.
-- **Everything the application writes to is chowned at build time**, because no process can chown at runtime anymore: `storage/`, `bootstrap/cache/`, `resources/static` (the scheduler's daily `generate:static-data`) and `public/` itself, whose directory `artisan storage:link --force` needs to recreate the symlink in.
+- **The whole application is www-data-owned at build time**, because no process can chown at runtime anymore. It covers everything the application writes to — `storage/`, `bootstrap/cache/`, `resources/static` (the scheduler's daily `generate:static-data`) and `public/` itself, whose directory `artisan storage:link --force` needs to recreate the symlink in — in a single `COPY --chown`, favoring simplicity over restricting the code itself to read-only.
 
-`storage/` being www-data-owned *in the image* is also what makes the volume work: Docker seeds a fresh named volume from the image directory it is mounted over, ownership included.
+`storage/` and `resources/static` being www-data-owned *in the image* is also what makes their volumes work: Docker seeds a fresh named volume from the image directory it is mounted over, ownership included.
+
+`resources/static` is on a volume (`static-data`) because it is read at runtime — `connections.json` feeds the routing of the queue's map alerts and the discord bot — while only the scheduler regenerates it. Without the shared volume, every other container would keep the build-time copy until the next image rebuild. Being seeded on creation only, the volume keeps the previous data after an image upgrade until the next daily run.
 
 Neither daemon is told which user to run as: php-fpm's `user`/`group` and nginx's `user` are only honoured by a master that starts as root, and here neither does — both simply inherit `www-data`. `files/php-fpm.conf` drops those directives, and `files/nginx.conf` replaces Debian's whole configuration rather than being included by it, which is also what moves the nginx pid file out of the root-owned `/run` (a `pid` directive belongs to the main context, so there is no way to override it from an included file).
 

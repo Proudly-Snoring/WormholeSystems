@@ -48,6 +48,9 @@ x-app: &app
     - wormholesystems
   volumes:
     - laravel-storage:/app/storage
+    # Shared so the scheduler's daily `generate:static-data` reaches every service reading it (queue and discord routing).
+    # Seeded from the image on creation only: after an upgrade, it keeps the previous data until the next daily run.
+    - static-data:/app/resources/static
 
 services:
   # ---------------------------------------------------------------------------
@@ -226,3 +229,4 @@ volumes:
   caddy-data:
   laravel-storage:
   mariadb-data:
+  static-data:

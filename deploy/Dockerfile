@@ -90,8 +90,8 @@ RUN php artisan package:discover --ansi
 RUN php artisan wayfinder:generate
 
 # EVE static data export.
-# Its JSON output is bundled into the frontend build by `generate:static-data` and isn't needed at runtime.
-# So the raw download is discarded below.
+# Its JSON output is bundled into the frontend build and also read at runtime (e.g. `connections.json` by MapProximityPathfinder).
+# Only the raw download is discarded below.
 RUN php artisan sde:download
 RUN php artisan generate:static-data --no-interaction
 
@@ -126,7 +126,10 @@ RUN npm ci && SKIP_STATIC_DATA_GENERATION=1 npm run build
 # `sde:download` writes through the "local" disk, which config/filesystems.php roots at
 # storage/app/private — not storage/app. Leaving it behind would ship the SDE zip plus its
 # extracted tree in the image for no runtime benefit.
-RUN rm -rf .env .env.production node_modules resources/static storage/app/private/sde tests
+RUN rm -rf .env .env.production node_modules storage/app/private/sde tests
+
+# The usual Laravel writable trees, created here so the runtime stage gets them www-data-owned along with the rest of /app.
+RUN mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache storage/logs bootstrap/cache
 
 # Config/route caching is deliberately NOT done here (`artisan optimize`).
 # It would bake build-time environment values into the image, silently shadowing the real values supplied at container start.
@@ -195,17 +198,9 @@ RUN ln -sf /dev/stderr /var/log/nginx/error.log
 RUN ln -sf /dev/stdout /var/log/nginx/access.log
 RUN ln -sf /dev/stderr /var/log/php8.4-fpm.log
 
-# Copy the built application
-COPY --from=build /app /app
-
-# Prepare application directories.
-# Everything the application writes to has to be owned by www-data:
-# - storage/ and bootstrap/cache/ are the usual Laravel writable trees.
-# - public/ itself (not its contents) because `artisan storage:link --force` recreates the symlink inside it on every web start.
-# - resources/static because the scheduler's daily `generate:static-data` writes there.
-RUN mkdir -p /app/storage/framework/sessions /app/storage/framework/views /app/storage/framework/cache /app/storage/logs /app/bootstrap/cache /app/resources/static
-RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache /app/resources/static
-RUN chown www-data:www-data /app/public
+# Copy the built application, owned by www-data as a whole.
+# --chown sets the ownership in the copy itself, so no file is duplicated in another layer as a `chown -R` would.
+COPY --from=build --chown=www-data:www-data /app /app
 
 # The below env are frozen into the image rather than left in deploy/.env: the websocket host is
 # already baked in via VITE_REVERB_* above and can't be repointed at runtime, so a differing
