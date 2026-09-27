@@ -34,7 +34,11 @@ const showMassTracking = computed(() => {
 </script>
 
 <template>
-    <PopoverContent class="w-60">
+    <!--
+        The jump list grows without bound, so the popup is capped to the space the
+        popover actually has and scrolls past it.
+    -->
+    <PopoverContent class="max-h-(--reka-popover-content-available-height) w-60 overflow-y-auto">
         <div class="space-y-3">
             <SignatureSection v-if="outSignature" :signature="outSignature" title="Out Sig" />
             <SignatureSection v-if="inSignature" :signature="inSignature" title="In Sig" />

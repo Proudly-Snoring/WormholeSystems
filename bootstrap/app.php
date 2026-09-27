@@ -26,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->encryptCookies(except: ['appearance', 'announcement_dismissed', 'layout', 'sort_preferences']);
+
         /*
          * TLS is terminated by the reverse proxy in front of the application (deploy/), so every
          * request reaches PHP as plain HTTP. Without this, the client address is the proxy's, and
@@ -42,8 +44,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PORT
                 | Request::HEADER_X_FORWARDED_PROTO,
         );
-
-        $middleware->encryptCookies(except: ['appearance', 'layout', 'sort_preferences']);
 
         $middleware->web(append: [
             HandleAppearance::class,
