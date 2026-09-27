@@ -43,11 +43,12 @@ return [
                 'enabled' => env('REVERB_SCALING_ENABLED', false),
                 'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),
                 'server' => [
+                    // Blank values fall back on their own, cf. the redis section of config/database.php.
                     'url' => env('REDIS_URL'),
-                    'host' => env('REDIS_HOST', '127.0.0.1'),
-                    'port' => env('REDIS_PORT', '6379'),
-                    'username' => env('REDIS_USERNAME'),
-                    'password' => env('REDIS_PASSWORD'),
+                    'host' => env('REDIS_HOST') ?: '127.0.0.1',
+                    'port' => (int) (env('REDIS_PORT') ?: 6379),
+                    'username' => env('REDIS_USERNAME') ?: null,
+                    'password' => env('REDIS_PASSWORD') ?: null,
                     'database' => env('REDIS_DB', '0'),
                     'timeout' => env('REDIS_TIMEOUT', 60),
                 ],
