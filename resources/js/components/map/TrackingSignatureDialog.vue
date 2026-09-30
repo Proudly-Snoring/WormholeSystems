@@ -121,6 +121,8 @@ const emit = defineEmits<{
             shipSize: TShipSize | null;
         },
     ];
+    /** Closed without confirming: the connection stays as the backend created it. */
+    dismiss: [];
 }>();
 
 const selectedSignatureId = ref<number | null>(null);
@@ -186,7 +188,7 @@ function handleConfirm() {
 
 function handleOpenChange(isOpen: boolean) {
     if (!isOpen) {
-        emit('selectSignature', buildSelection(null));
+        emit('dismiss');
     }
 }
 
@@ -194,7 +196,7 @@ function handleDontAskAgain() {
     updateMapUserSettings(page.props.map.slug, {
         prompt_for_signature_enabled: false,
     });
-    emit('selectSignature', buildSelection(null));
+    emit('dismiss');
 }
 
 function handleLifetimeChange(value: AcceptableValue) {
