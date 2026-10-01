@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Jobs\Characters;
 
-use App\Actions\MapConnections\RecordMapConnectionJumpAction;
 use App\Actions\ShipHistories\UpdateShipHistoryAction;
+use App\Actions\Tracking\TrackCharacterJumpAction;
 use App\Models\CharacterStatus;
 use Illuminate\Bus\Batchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use NicolasKion\Esi\DTO\Location;
 use NicolasKion\Esi\DTO\Ship;
@@ -36,7 +37,7 @@ final class UpdateCharacterLocation implements ShouldQueue
      * @throws Throwable
      * @throws ConnectionException
      */
-    public function handle(Esi $esi, UpdateShipHistoryAction $action, RecordMapConnectionJumpAction $recordJumpAction): void
+    public function handle(Esi $esi, UpdateShipHistoryAction $action, TrackCharacterJumpAction $trackJumpAction): void
     {
         $characterStatus = CharacterStatus::query()->find($this->character_status_id);
 
@@ -64,6 +65,8 @@ final class UpdateCharacterLocation implements ShouldQueue
         $ship = $ship_request->data;
 
         $previous_solarsystem_id = $characterStatus->solarsystem_id;
+        $was_docked = $characterStatus->station_id !== null || $characterStatus->structure_id !== null;
+        $is_continuous = $this->observeContinuity($characterStatus);
 
         $characterStatus->update([
             'solarsystem_id' => $location->solar_system_id,
@@ -86,7 +89,22 @@ final class UpdateCharacterLocation implements ShouldQueue
             $characterStatus->update(['event_queued_at' => now()]);
         }
 
-        $this->recordJump($recordJumpAction, $characterStatus, $previous_solarsystem_id, $location, $ship);
+        /* Only a move from a position observed by a recent poll is a jump.
+         * Otherwise it is a relocation (login elsewhere, site closed for a
+         * while, ESI outage...): the new system is only the starting point.
+         */
+        if (! $is_continuous || $previous_solarsystem_id === null) {
+            return;
+        }
+
+        $this->trackJump(
+            $trackJumpAction,
+            $characterStatus,
+            $previous_solarsystem_id,
+            $location,
+            $ship,
+            $was_docked || $location->station_id !== null || $location->structure_id !== null,
+        );
     }
 
     /**
@@ -100,29 +118,42 @@ final class UpdateCharacterLocation implements ShouldQueue
     }
 
     /**
-     * A jump-log failure must never break location polling.
+     * Whether the previous successful poll of this character is recent enough
+     * for a change of system to be a jump. Refreshes the marker for the next poll.
      */
-    private function recordJump(
-        RecordMapConnectionJumpAction $recordJumpAction,
+    private function observeContinuity(CharacterStatus $characterStatus): bool
+    {
+        $store = Cache::store(config('map.tracking.continuity_store'));
+        $key = sprintf('character_location_checked.%d', $characterStatus->id);
+
+        $is_continuous = $store->has($key);
+        $store->put($key, true, config('map.tracking.continuity_seconds'));
+
+        return $is_continuous;
+    }
+
+    /**
+     * A jump-tracking failure must never break location polling.
+     */
+    private function trackJump(
+        TrackCharacterJumpAction $trackJumpAction,
         CharacterStatus $characterStatus,
-        ?int $previous_solarsystem_id,
+        int $previous_solarsystem_id,
         Location $location,
         Ship $ship,
+        bool $docked,
     ): void {
-        if ($previous_solarsystem_id === null || $previous_solarsystem_id === $location->solar_system_id) {
-            return;
-        }
-
         try {
-            $recordJumpAction->handle(
-                $characterStatus->character_id,
+            $trackJumpAction->handle(
+                $characterStatus->character,
                 $previous_solarsystem_id,
                 $location->solar_system_id,
                 $ship->ship_type_id,
                 $ship->ship_name,
+                $docked,
             );
         } catch (Throwable $exception) {
-            Log::warning(sprintf('Failed to record connection jump for character %d', $characterStatus->character_id), [
+            Log::warning(sprintf('Failed to track jump for character %d', $characterStatus->character_id), [
                 'exception' => $exception,
             ]);
         }

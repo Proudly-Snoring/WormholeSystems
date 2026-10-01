@@ -55,6 +55,7 @@ const {
     signatures,
     show_signature_modal,
     handleSelectSignature,
+    handleDismissSignature,
     origin_map_solarsystem,
     target_solarsystem,
     suggested_alias,
@@ -367,6 +368,7 @@ const settingsUrl = computed(() => {
         :signatures="signatures"
         :suggested-alias="suggested_alias"
         @select-signature="handleSelectSignature"
+        @dismiss="handleDismissSignature"
     />
 
     <!-- Leave Layout Editing Confirmation -->

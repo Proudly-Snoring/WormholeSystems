@@ -17,8 +17,7 @@ final class MapConnectionJumpPolicy
 
     public function update(User $user, MapConnectionJump $map_connection_jump): bool
     {
-        return $map_connection_jump->mapConnection instanceof MapConnection
-            && $user->can('update', $map_connection_jump->mapConnection);
+        return $user->can('update', $map_connection_jump->mapConnection);
     }
 
     public function delete(User $user, MapConnectionJump $map_connection_jump): bool

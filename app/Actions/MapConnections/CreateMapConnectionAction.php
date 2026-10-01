@@ -4,21 +4,55 @@ declare(strict_types=1);
 
 namespace App\Actions\MapConnections;
 
+use App\Actions\MapSolarsystem\LockMapSolarsystemsAction;
 use App\Enums\ShipSize;
 use App\Jobs\MapAlerts\EvaluateMapAlertsJob;
 use App\Models\MapConnection;
 use App\Models\MapSolarsystem;
 use App\Models\Wormhole;
 use App\Support\Broadcasting\MapBroadcaster;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 final readonly class CreateMapConnectionAction
 {
     public function __construct(
         private MapBroadcaster $mapBroadcaster,
-        private ClaimPendingConnectionJumpsAction $claimPendingConnectionJumpsAction,
+        private LockMapSolarsystemsAction $lockMapSolarsystemsAction,
     ) {}
 
+    /**
+     * Creates the connection, or returns the one already linking both systems
+     * (check `wasRecentlyCreated` to tell them apart).
+     *
+     * @throws Throwable
+     */
     public function handle(array $data): MapConnection
+    {
+        return DB::transaction(function () use ($data): MapConnection {
+            /* Every creation path goes through here: locking both endpoints
+             * before the re-check serializes concurrent creations between the
+             * same systems (A→B by one pilot, B→A by another, or a manual add).
+             */
+            $this->lockMapSolarsystemsAction->handle($data['from_map_solarsystem_id'], $data['to_map_solarsystem_id']);
+
+            /* A locking read, so it sees connections committed after this
+             * transaction's snapshot was taken.
+             */
+            $existing_connection = MapConnection::query()
+                ->connectsMapSolarsystems($data['from_map_solarsystem_id'], $data['to_map_solarsystem_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing_connection instanceof MapConnection) {
+                return $existing_connection;
+            }
+
+            return $this->createConnection($data);
+        });
+    }
+
+    private function createConnection(array $data): MapConnection
     {
         $map_id = MapSolarsystem::query()
             ->where('id', $data['from_map_solarsystem_id'])
@@ -38,11 +72,6 @@ final readonly class CreateMapConnectionAction
             ...$data,
             'map_id' => $map_id,
         ]);
-
-        /* Claim before the broadcast so the first payload other viewers see
-         * already carries jumps observed before the connection existed.
-         */
-        $this->claimPendingConnectionJumpsAction->handle($map_connection);
 
         /* A new wormhole edge can complete a route for alerts with a fixed starting
          * point even though no system was placed, so both endpoints re-evaluate.
