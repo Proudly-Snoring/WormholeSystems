@@ -9,6 +9,7 @@ use App\Jobs\MapAlerts\EvaluateMapAlertsJob;
 use App\Models\Map;
 use App\Models\MapSolarsystem;
 use App\Support\Broadcasting\MapBroadcaster;
+use App\Utilities\StargatePairDetector;
 use Throwable;
 
 final readonly class StoreMapSolarsystemAction
@@ -16,6 +17,7 @@ final readonly class StoreMapSolarsystemAction
     public function __construct(
         private CreateMapConnectionAction $createMapConnection,
         private MapBroadcaster $mapBroadcaster,
+        private StargatePairDetector $stargatePairDetector,
     ) {}
 
     /**
@@ -71,6 +73,7 @@ final readonly class StoreMapSolarsystemAction
         $this->createMapConnection->handle([
             'from_map_solarsystem_id' => $origin_id,
             'to_map_solarsystem_id' => $target->id,
+            'type' => $this->stargatePairDetector->connectionTypeBetween($origin_id, $target->id),
         ]);
     }
 }
