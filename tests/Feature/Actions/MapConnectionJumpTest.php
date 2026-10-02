@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Actions\MapConnections\RecordMapConnectionJumpAction;
-use App\Actions\Tracking\StoreTrackingAction;
-use App\Console\Commands\MapConnections\PruneUnclaimedConnectionJumpsCommand;
-use App\Data\TrackingData;
+use App\Actions\Tracking\TrackCharacterJumpAction;
 use App\Enums\ConnectionType;
+use App\Enums\SolarsystemClass;
+use App\Events\Characters\CharacterJumpedEvent;
 use App\Events\MapConnections\MapConnectionsUpsertedEvent;
 use App\Models\Category;
 use App\Models\Character;
@@ -14,17 +13,27 @@ use App\Models\Group;
 use App\Models\Map;
 use App\Models\MapConnection;
 use App\Models\MapConnectionJump;
+use App\Models\MapIgnoredSolarsystem;
 use App\Models\MapUserSetting;
 use App\Models\Type;
+use App\Models\WormholeSystem;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 const JUMP_SHIP_TYPE_ID = 73790;
 
 const JUMP_SHIP_MASS = 130_000_000;
 
-function createTrackedCharacter(): Character
+const CAPSULE_TYPE_ID = 670;
+
+/**
+ * Reloaded so the id is the database integer, not the factory's float.
+ */
+function createTrackedCharacter(?int $user_id = null): Character
 {
-    return Character::factory()->create();
+    $attributes = $user_id === null ? [] : ['user_id' => $user_id];
+
+    return Character::factory()->create($attributes)->fresh();
 }
 
 function createTrackedMap(Character $character, bool $tracking_allowed = true, bool $is_tracking = true): Map
@@ -41,15 +50,28 @@ function createTrackedMap(Character $character, bool $tracking_allowed = true, b
     return $map;
 }
 
-function createJumpShipType(): Type
+function createJumpShipType(int $type_id = JUMP_SHIP_TYPE_ID, float $mass = JUMP_SHIP_MASS, int $group_id = 27, string $group_name = 'Battleship'): Type
 {
     Category::query()->firstOrCreate(['id' => 6], ['name' => 'Ship']);
-    Group::query()->firstOrCreate(['id' => 27], ['name' => 'Battleship', 'category_id' => 6]);
+    Group::query()->firstOrCreate(['id' => $group_id], ['name' => $group_name, 'category_id' => 6]);
 
     return Type::query()->firstOrCreate(
-        ['id' => JUMP_SHIP_TYPE_ID],
-        ['name' => 'Praxis', 'group_id' => 27, 'mass' => JUMP_SHIP_MASS],
+        ['id' => $type_id],
+        ['name' => 'Ship '.$type_id, 'group_id' => $group_id, 'mass' => $mass],
     );
+}
+
+function createCapsuleType(): Type
+{
+    return createJumpShipType(CAPSULE_TYPE_ID, 32_000, 29, 'Capsule');
+}
+
+function makeWormholeSolarsystem(int $solarsystem_id, SolarsystemClass $class): int
+{
+    makeSolarsystem($solarsystem_id, -1.0, 'wormhole');
+    WormholeSystem::query()->create(['id' => $solarsystem_id, 'class' => $class]);
+
+    return $solarsystem_id;
 }
 
 /**
@@ -70,14 +92,15 @@ function createTrackedMapWithConnection(Character $character, int $from_solarsys
     return ['map' => $map, 'connection' => $connection, 'from' => $from_solarsystem_id, 'to' => $to_solarsystem_id];
 }
 
-function recordJump(Character $character, int $from_solarsystem_id, int $to_solarsystem_id): void
+function recordJump(Character $character, int $from_solarsystem_id, int $to_solarsystem_id, int $ship_type_id = JUMP_SHIP_TYPE_ID, bool $docked = false): void
 {
-    app(RecordMapConnectionJumpAction::class)->handle(
-        (int) $character->id,
+    app(TrackCharacterJumpAction::class)->handle(
+        $character,
         $from_solarsystem_id,
         $to_solarsystem_id,
-        JUMP_SHIP_TYPE_ID,
+        $ship_type_id,
         'Test Ship',
+        $docked,
     );
 }
 
@@ -94,7 +117,8 @@ it('records a jump through an existing wormhole connection with the ship mass sn
     expect($jump->map_connection_id)->toBe($connection->id)
         ->and($jump->character_id)->toBe((int) $character->id)
         ->and($jump->ship_type_id)->toBe(JUMP_SHIP_TYPE_ID)
-        ->and($jump->mass)->toBe(JUMP_SHIP_MASS);
+        ->and($jump->mass)->toBe(JUMP_SHIP_MASS)
+        ->and(MapConnection::query()->count())->toBe(1);
 
     Event::assertDispatched(MapConnectionsUpsertedEvent::class, function (MapConnectionsUpsertedEvent $event) use ($connection): bool {
         return collect($event->broadcastWith()['map_connections'])
@@ -111,7 +135,8 @@ it('records a jump in the reverse direction of the connection', function () {
 
     recordJump($character, 31000104, 31000103);
 
-    expect(MapConnectionJump::query()->sole()->map_connection_id)->toBe($connection->id);
+    expect(MapConnectionJump::query()->sole()->map_connection_id)->toBe($connection->id)
+        ->and(MapConnection::query()->count())->toBe(1);
 });
 
 it('skips stargate-type connections', function () {
@@ -125,9 +150,7 @@ it('skips stargate-type connections', function () {
     expect(MapConnectionJump::query()->count())->toBe(0);
 });
 
-it('stores a pending jump when the connection does not exist yet and broadcasts nothing', function () {
-    Event::fake([MapConnectionsUpsertedEvent::class]);
-
+it('creates the connection and logs the jump on it when it does not exist yet', function () {
     $character = createTrackedCharacter();
     createJumpShipType();
     $map = createTrackedMap($character);
@@ -136,15 +159,51 @@ it('stores a pending jump when the connection does not exist yet and broadcasts 
 
     recordJump($character, 31000107, 31000108);
 
+    $connection = MapConnection::query()->where('map_id', $map->id)->sole();
     $jump = MapConnectionJump::query()->sole();
-    expect($jump->map_connection_id)->toBeNull()
-        ->and($jump->map_id)->toBe($map->id)
-        ->and($jump->mass)->toBe(JUMP_SHIP_MASS);
+    expect($jump->map_connection_id)->toBe($connection->id)
+        ->and($jump->mass)->toBe(JUMP_SHIP_MASS)
+        ->and($map->mapSolarsystems()->where('solarsystem_id', 31000108)->exists())->toBeTrue();
+});
 
-    Event::assertNotDispatched(MapConnectionsUpsertedEvent::class);
+it('broadcasts the jump with its map and connection to the owner of the character', function () {
+    Event::fake([CharacterJumpedEvent::class]);
+
+    $character = createTrackedCharacter();
+    createJumpShipType();
+    ['map' => $map, 'connection' => $connection] = createTrackedMapWithConnection($character, 31000124, 31000125);
+
+    recordJump($character, 31000124, 31000125);
+
+    Event::assertDispatched(CharacterJumpedEvent::class, function (CharacterJumpedEvent $event) use ($character, $map, $connection): bool {
+        return $event->broadcastOn()[0]->name === sprintf('private-User.%d', $character->user_id)
+            && $event->broadcastWith() === [
+                'map_id' => $map->id,
+                'character_id' => (int) $character->id,
+                'from_solarsystem_id' => 31000124,
+                'to_solarsystem_id' => 31000125,
+                'ship_type_id' => JUMP_SHIP_TYPE_ID,
+                'map_connection_id' => $connection->id,
+            ];
+    });
+});
+
+it('tracks every character of the user, not only the active one', function () {
+    $character = createTrackedCharacter();
+    $alt = createTrackedCharacter($character->user_id);
+    createJumpShipType();
+    ['connection' => $connection] = createTrackedMapWithConnection($character, 31000126, 31000127);
+
+    recordJump($alt, 31000126, 31000127);
+
+    expect(MapConnectionJump::query()->sole())
+        ->map_connection_id->toBe($connection->id)
+        ->character_id->toBe((int) $alt->id);
 });
 
 it('stores nothing when the origin system is not on the map', function () {
+    Event::fake([CharacterJumpedEvent::class]);
+
     $character = createTrackedCharacter();
     createJumpShipType();
     createTrackedMap($character);
@@ -153,7 +212,23 @@ it('stores nothing when the origin system is not on the map', function () {
 
     recordJump($character, 31000109, 31000110);
 
-    expect(MapConnectionJump::query()->count())->toBe(0);
+    expect(MapConnectionJump::query()->count())->toBe(0)
+        ->and(MapConnection::query()->count())->toBe(0);
+    Event::assertNotDispatched(CharacterJumpedEvent::class);
+});
+
+it('stores nothing when the target system is ignored by the map', function () {
+    $character = createTrackedCharacter();
+    createJumpShipType();
+    $map = createTrackedMap($character);
+    placeMapSolarsystem($map, 31000128);
+    makeSolarsystem(31000129);
+    MapIgnoredSolarsystem::query()->create(['map_id' => $map->id, 'solarsystem_id' => 31000129]);
+
+    recordJump($character, 31000128, 31000129);
+
+    expect(MapConnectionJump::query()->count())->toBe(0)
+        ->and(MapConnection::query()->count())->toBe(0);
 });
 
 it('stores nothing for k-space systems linked by stargates', function () {
@@ -167,7 +242,8 @@ it('stores nothing for k-space systems linked by stargates', function () {
 
     recordJump($character, 31000111, 31000112);
 
-    expect(MapConnectionJump::query()->count())->toBe(0);
+    expect(MapConnectionJump::query()->count())->toBe(0)
+        ->and(MapConnection::query()->count())->toBe(0);
 });
 
 it('fans out to every map tracking the character but skips maps without tracking consent', function () {
@@ -199,93 +275,86 @@ it('fans out to every map tracking the character but skips maps without tracking
         ->toBe(collect([$first_connection->id, $second_connection->id])->sort()->values()->all());
 });
 
-it('claims a pending jump when the tracked connection is created and broadcasts the jump summary', function () {
-    Event::fake([MapConnectionsUpsertedEvent::class]);
-
+it('keeps tracking the other maps when one map fails', function () {
     $character = createTrackedCharacter();
     createJumpShipType();
-    $map = createTrackedMap($character);
-    $origin = placeMapSolarsystem($map, 31000115);
-    makeSolarsystem(31000116);
+    $failing_map = createTrackedMap($character);
+    placeMapSolarsystem($failing_map, 31000130);
+    $working_map = createTrackedMap($character);
+    placeMapSolarsystem($working_map, 31000130);
+    makeSolarsystem(31000131);
 
-    recordJump($character, 31000115, 31000116);
-
-    expect(MapConnectionJump::query()->sole()->map_connection_id)->toBeNull();
-
-    app(StoreTrackingAction::class)->handle(TrackingData::from([
-        'from_map_solarsystem_id' => $origin->id,
-        'to_solarsystem_id' => 31000116,
-    ]));
-
-    $connection = MapConnection::query()->where('map_id', $map->id)->sole();
-    expect(MapConnectionJump::query()->sole()->map_connection_id)->toBe($connection->id);
-
-    Event::assertDispatched(MapConnectionsUpsertedEvent::class, function (MapConnectionsUpsertedEvent $event) use ($connection): bool {
-        return collect($event->broadcastWith()['map_connections'])
-            ->contains(fn (array $payload): bool => $payload['id'] === $connection->id
-                && $payload['jumps_mass_sum'] === JUMP_SHIP_MASS
-                && $payload['jumps_count'] === 1);
+    MapConnection::creating(function (MapConnection $connection) use ($failing_map): void {
+        throw_if($connection->map_id === $failing_map->id, RuntimeException::class, 'Lock wait timeout');
     });
+
+    recordJump($character, 31000130, 31000131);
+
+    expect(MapConnection::query()->sole()->map_id)->toBe($working_map->id)
+        ->and(MapConnectionJump::query()->sole()->map_id)->toBe($working_map->id);
 });
 
-it('does not claim stale pendings or pendings of other system pairs', function () {
+it('checks that the ship fits through a wormhole into or out of a C1 or C13', function (SolarsystemClass $from_class, SolarsystemClass $to_class, float $ship_mass, bool $tracked) {
     $character = createTrackedCharacter();
-    createJumpShipType();
+    createJumpShipType(mass: $ship_mass);
     $map = createTrackedMap($character);
-    $origin = placeMapSolarsystem($map, 31000117);
-    makeSolarsystem(31000118);
-    makeSolarsystem(31000119);
+    placeMapSolarsystem($map, makeWormholeSolarsystem(31000132, $from_class));
+    makeWormholeSolarsystem(31000133, $to_class);
 
-    recordJump($character, 31000117, 31000118);
-    $stale = MapConnectionJump::query()->sole();
-    $stale->update(['created_at' => now()->subMinutes(5)]);
+    recordJump($character, 31000132, 31000133);
 
-    recordJump($character, 31000117, 31000119);
-    $other_pair = MapConnectionJump::query()->whereKeyNot($stale->id)->sole();
+    expect(MapConnection::query()->count())->toBe($tracked ? 1 : 0)
+        ->and(MapConnectionJump::query()->count())->toBe($tracked ? 1 : 0);
+})->with([
+    'battleship into a C1' => [SolarsystemClass::C5, SolarsystemClass::C1, 100_000_000, false],
+    'battleship out of a C1' => [SolarsystemClass::C1, SolarsystemClass::C5, 100_000_000, false],
+    'cruiser into a C1' => [SolarsystemClass::C5, SolarsystemClass::C1, 12_000_000, true],
+    'destroyer into a C13' => [SolarsystemClass::C5, SolarsystemClass::C13, 1_800_000, true],
+    'cruiser into a C13' => [SolarsystemClass::C5, SolarsystemClass::C13, 12_000_000, false],
+    'cruiser out of a C13 into a C1' => [SolarsystemClass::C13, SolarsystemClass::C1, 12_000_000, false],
+    'battleship between unrestricted classes' => [SolarsystemClass::C5, SolarsystemClass::C6, 100_000_000, true],
+]);
 
-    app(StoreTrackingAction::class)->handle(TrackingData::from([
-        'from_map_solarsystem_id' => $origin->id,
-        'to_solarsystem_id' => 31000118,
-    ]));
-
-    expect($stale->fresh()->map_connection_id)->toBeNull()
-        ->and($other_pair->fresh()->map_connection_id)->toBeNull();
-});
-
-it('prunes only stale unclaimed jumps', function () {
+it('lets a battleship through Thera or Turnur', function (string $name) {
     $character = createTrackedCharacter();
-    createJumpShipType();
-    ['connection' => $connection] = createTrackedMapWithConnection($character, 31000120, 31000121);
-    $map = $connection->map;
+    createJumpShipType(mass: 100_000_000);
+    $map = createTrackedMap($character);
+    placeMapSolarsystem($map, makeSolarsystem(31000134, 0.9, 'eve'));
+    makeSolarsystem(31000135, -1.0, 'wormhole');
+    DB::table('solarsystems')->where('id', 31000135)->update(['name' => $name]);
 
-    $claimed = MapConnectionJump::factory()->create([
-        'map_id' => $map->id,
-        'map_connection_id' => $connection->id,
-        'character_id' => $character->id,
-        'from_solarsystem_id' => 31000120,
-        'to_solarsystem_id' => 31000121,
-        'created_at' => now()->subHour(),
-    ]);
-    $stale_pending = MapConnectionJump::factory()->pending()->create([
-        'map_id' => $map->id,
-        'character_id' => $character->id,
-        'from_solarsystem_id' => 31000120,
-        'to_solarsystem_id' => 31000121,
-        'created_at' => now()->subHour(),
-    ]);
-    $fresh_pending = MapConnectionJump::factory()->pending()->create([
-        'map_id' => $map->id,
-        'character_id' => $character->id,
-        'from_solarsystem_id' => 31000120,
-        'to_solarsystem_id' => 31000121,
-    ]);
+    recordJump($character, 31000134, 31000135);
 
-    $this->artisan(PruneUnclaimedConnectionJumpsCommand::class)->assertSuccessful();
+    expect(MapConnectionJump::query()->count())->toBe(1);
+})->with(['Thera', 'Turnur']);
 
-    expect(MapConnectionJump::query()->pluck('id')->sort()->values()->all())
-        ->toBe(collect([$claimed->id, $fresh_pending->id])->sort()->values()->all())
-        ->and(MapConnectionJump::query()->whereKey($stale_pending->id)->exists())->toBeFalse();
+it('tracks a jump when the ship mass is unknown', function () {
+    $character = createTrackedCharacter();
+    $map = createTrackedMap($character);
+    placeMapSolarsystem($map, makeWormholeSolarsystem(31000136, SolarsystemClass::C5));
+    makeWormholeSolarsystem(31000137, SolarsystemClass::C1);
+
+    recordJump($character, 31000136, 31000137, ship_type_id: 999_999);
+
+    expect(MapConnection::query()->count())->toBe(1);
 });
+
+it('rejects a capsule leaving or reaching a station or structure', function (bool $capsule, bool $docked, bool $tracked) {
+    $character = createTrackedCharacter();
+    $ship = $capsule ? createCapsuleType() : createJumpShipType();
+    $map = createTrackedMap($character);
+    placeMapSolarsystem($map, 31000138);
+    makeSolarsystem(31000139);
+
+    recordJump($character, 31000138, 31000139, ship_type_id: $ship->id, docked: $docked);
+
+    expect(MapConnection::query()->count())->toBe($tracked ? 1 : 0)
+        ->and(MapConnectionJump::query()->count())->toBe($tracked ? 1 : 0);
+})->with([
+    'capsule docked on one side' => [true, true, false],
+    'capsule in space to space' => [true, false, true],
+    'ship arriving docked' => [false, true, true],
+]);
 
 it('deletes the jump log together with its connection', function () {
     $character = createTrackedCharacter();

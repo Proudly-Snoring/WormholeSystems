@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\MapConnections\CreateMapConnectionAction;
 use App\Actions\MapSolarsystem\UpdateMapSolarsystemAction;
 use App\Actions\Tracking\StoreTrackingAction;
 use App\Data\TrackingData;
+use App\Enums\LifetimeStatus;
+use App\Enums\MassStatus;
 use App\Enums\ShipSize;
 use App\Events\MapSolarsystems\MapSolarsystemsUpsertedEvent;
 use App\Models\Map;
@@ -170,6 +173,220 @@ it('prefers the explicit ship size over the signature ship size', function () {
     ]));
 
     expect(MapConnection::where('map_id', $map->id)->value('ship_size'))->toBe(ShipSize::ExtraLarge);
+});
+
+it('does not duplicate a connection tracked in the reverse direction or created by hand', function () {
+    $map = Map::factory()->create();
+    $origin = placeMapSolarsystem($map, 30012013);
+    $targetId = makeSolarsystem(30012014);
+
+    $created = app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $origin->id,
+        'to_solarsystem_id' => $targetId,
+    ]));
+    $target = $map->mapSolarsystems()->where('solarsystem_id', $targetId)->firstOrFail();
+
+    $reversed = app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $target->id,
+        'to_solarsystem_id' => $origin->solarsystem_id,
+    ]));
+    $manual = app(CreateMapConnectionAction::class)->handle([
+        'from_map_solarsystem_id' => $target->id,
+        'to_map_solarsystem_id' => $origin->id,
+    ]);
+
+    expect(MapConnection::where('map_id', $map->id)->count())->toBe(1)
+        ->and($created->wasRecentlyCreated)->toBeTrue()
+        ->and($reversed->is($created))->toBeTrue()
+        ->and($reversed->wasRecentlyCreated)->toBeFalse()
+        ->and($manual->is($created))->toBeTrue()
+        ->and($manual->wasRecentlyCreated)->toBeFalse();
+});
+
+it('applies every provided field to an existing connection', function () {
+    $map = Map::factory()->create();
+    $origin = placeMapSolarsystem($map, 30012015);
+    $target = placeMapSolarsystem($map, 30012016, 300, 300);
+    $connection = MapConnection::factory()->create([
+        'map_id' => $map->id,
+        'from_map_solarsystem_id' => $origin->id,
+        'to_map_solarsystem_id' => $target->id,
+        'mass_status' => MassStatus::Fresh,
+        'lifetime' => LifetimeStatus::Healthy,
+        'ship_size' => ShipSize::Large,
+    ]);
+    $signature = Signature::create(['map_solarsystem_id' => $origin->id, 'signature_id' => 'JKL-012']);
+
+    app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $origin->id,
+        'to_solarsystem_id' => $target->solarsystem_id,
+        'signature_id' => $signature->id,
+        'alias' => 'C4',
+        'mass_status' => 'reduced',
+        'lifetime' => 'eol',
+        'ship_size' => 'medium',
+    ]));
+
+    $connection->refresh();
+    $signature->refresh();
+    expect($signature->map_connection_id)->toBe($connection->id)
+        ->and($signature->mass_status)->toBe(MassStatus::Reduced)
+        ->and($connection->mass_status)->toBe(MassStatus::Reduced)
+        ->and($connection->lifetime)->toBe(LifetimeStatus::EndOfLife)
+        ->and($connection->ship_size)->toBe(ShipSize::Medium)
+        ->and($target->fresh()->alias)->toBe('C4');
+});
+
+it('leaves the fields that are not provided untouched on an existing connection', function () {
+    $map = Map::factory()->create();
+    $origin = placeMapSolarsystem($map, 30012017);
+    $target = placeMapSolarsystem($map, 30012018, 300, 300);
+    $target->update(['alias' => 'KEEP']);
+    $connection = MapConnection::factory()->create([
+        'map_id' => $map->id,
+        'from_map_solarsystem_id' => $origin->id,
+        'to_map_solarsystem_id' => $target->id,
+        'mass_status' => MassStatus::Reduced,
+        'lifetime' => LifetimeStatus::EndOfLife,
+        'ship_size' => ShipSize::Medium,
+    ]);
+
+    app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $origin->id,
+        'to_solarsystem_id' => $target->solarsystem_id,
+        'alias' => null,
+        'mass_status' => null,
+        'lifetime' => null,
+        'ship_size' => null,
+    ]));
+
+    $connection->refresh();
+    expect($connection->mass_status)->toBe(MassStatus::Reduced)
+        ->and($connection->lifetime)->toBe(LifetimeStatus::EndOfLife)
+        ->and($connection->ship_size)->toBe(ShipSize::Medium)
+        ->and($target->fresh()->alias)->toBe('KEEP');
+});
+
+it('keeps the worst mass and lifetime of an existing connection', function () {
+    $map = Map::factory()->create();
+    $origin = placeMapSolarsystem($map, 30012019);
+    $target = placeMapSolarsystem($map, 30012020, 300, 300);
+    $connection = MapConnection::factory()->create([
+        'map_id' => $map->id,
+        'from_map_solarsystem_id' => $origin->id,
+        'to_map_solarsystem_id' => $target->id,
+        'mass_status' => MassStatus::Critical,
+        'lifetime' => LifetimeStatus::Critical,
+    ]);
+
+    app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $origin->id,
+        'to_solarsystem_id' => $target->solarsystem_id,
+        'mass_status' => 'fresh',
+        'lifetime' => 'healthy',
+    ]));
+
+    $connection->refresh();
+    expect($connection->mass_status)->toBe(MassStatus::Critical)
+        ->and($connection->lifetime)->toBe(LifetimeStatus::Critical);
+});
+
+it('does not reset a reduced end-of-life signature to the defaults of the connection it is linked to', function () {
+    $map = Map::factory()->create();
+    $origin = placeMapSolarsystem($map, 30012021);
+    $target = placeMapSolarsystem($map, 30012022, 300, 300);
+    $connection = MapConnection::factory()->create([
+        'map_id' => $map->id,
+        'from_map_solarsystem_id' => $origin->id,
+        'to_map_solarsystem_id' => $target->id,
+        'mass_status' => MassStatus::Fresh,
+        'lifetime' => LifetimeStatus::Healthy,
+    ]);
+    $signature = Signature::create([
+        'map_solarsystem_id' => $origin->id,
+        'signature_id' => 'MNO-345',
+        'mass_status' => MassStatus::Reduced,
+        'lifetime' => LifetimeStatus::EndOfLife,
+    ]);
+
+    app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $origin->id,
+        'to_solarsystem_id' => $target->solarsystem_id,
+        'signature_id' => $signature->id,
+    ]));
+
+    $connection->refresh();
+    expect($connection->mass_status)->toBe(MassStatus::Reduced)
+        ->and($connection->lifetime)->toBe(LifetimeStatus::EndOfLife)
+        ->and($signature->fresh()->mass_status)->toBe(MassStatus::Reduced);
+});
+
+it('lets the signature wormhole type win over the chosen ship size on an existing connection', function () {
+    $map = Map::factory()->create();
+    $origin = placeMapSolarsystem($map, 30012023);
+    $target = placeMapSolarsystem($map, 30012024, 300, 300);
+    $connection = MapConnection::factory()->create([
+        'map_id' => $map->id,
+        'from_map_solarsystem_id' => $origin->id,
+        'to_map_solarsystem_id' => $target->id,
+    ]);
+    $signature = Signature::create([
+        'map_solarsystem_id' => $origin->id,
+        'signature_id' => 'PQR-678',
+        'wormhole_id' => makeWormhole()->id,
+    ]);
+
+    app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $origin->id,
+        'to_solarsystem_id' => $target->solarsystem_id,
+        'signature_id' => $signature->id,
+        'ship_size' => 'frigate',
+    ]));
+
+    expect($connection->fresh()->ship_size)->toBe(ShipSize::ExtraLarge);
+});
+
+it('gives the same result when the signature is linked after the connection was created', function () {
+    $selection = fn (int $signature_id): array => [
+        'signature_id' => $signature_id,
+        'alias' => 'C5a',
+        'mass_status' => 'reduced',
+        'lifetime' => 'eol',
+        'ship_size' => 'medium',
+    ];
+
+    $direct_map = Map::factory()->create();
+    $direct_origin = placeMapSolarsystem($direct_map, 30012025);
+    $direct_signature = Signature::create(['map_solarsystem_id' => $direct_origin->id, 'signature_id' => 'STU-901']);
+    $direct = app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $direct_origin->id,
+        'to_solarsystem_id' => makeSolarsystem(30012026),
+        ...$selection($direct_signature->id),
+    ]));
+
+    $later_map = Map::factory()->create();
+    $later_origin = placeMapSolarsystem($later_map, 30012025);
+    $later_signature = Signature::create(['map_solarsystem_id' => $later_origin->id, 'signature_id' => 'STU-901']);
+    app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $later_origin->id,
+        'to_solarsystem_id' => 30012026,
+    ]));
+    $later = app(StoreTrackingAction::class)->handle(TrackingData::from([
+        'from_map_solarsystem_id' => $later_origin->id,
+        'to_solarsystem_id' => 30012026,
+        ...$selection($later_signature->id),
+    ]));
+
+    $summary = fn (MapConnection $connection, Signature $signature): array => [
+        'mass_status' => $connection->fresh()->mass_status,
+        'lifetime' => $connection->fresh()->lifetime,
+        'ship_size' => $connection->fresh()->ship_size,
+        'alias' => $connection->fresh()->toMapSolarsystem->alias,
+        'linked' => $signature->fresh()->map_connection_id === $connection->id,
+        'category' => $signature->fresh()->signature_category_id,
+    ];
+
+    expect($summary($later, $later_signature))->toBe($summary($direct, $direct_signature));
 });
 
 it('locks the connection ship size to the signature wormhole type', function () {

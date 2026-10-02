@@ -59,6 +59,20 @@ final class MapPolicy
     }
 
     /**
+     * Authenticated users with any accessor row on the map (viewer+). Unlike viewCharacters,
+     * this does not require edit rights, and unlike view, it excludes anonymous public/share
+     * -token visitors -- the leaderboard exposes character-name attribution.
+     */
+    public function viewLeaderboard(?User $user, Map $map): bool
+    {
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        return $map->getUserPermission($user) instanceof Permission;
+    }
+ 
+    /**
      * Creating a map is open to every authenticated user unless the instance
      * names the affiliations allowed to do so. Same shape as the login
      * whitelist, and independent of it: an instance can be open to an alliance

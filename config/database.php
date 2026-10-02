@@ -143,6 +143,14 @@ return [
     |
     */
 
+    /*
+     * The deployment loads its env file verbatim (cf. deploy/.env.example), so an optional key left
+     * blank reaches the application as an empty string rather than a missing variable — the second
+     * argument of env() never fires. Every value a deployment may legitimately leave blank
+     * therefore falls back on its own. The port is cast because phpredis takes an int: an empty
+     * string aborts the boot with a TypeError before anything is served.
+     */
+
     'redis' => [
 
         'client' => env('REDIS_CLIENT', 'phpredis'),
@@ -155,19 +163,19 @@ return [
 
         'default' => [
             'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
+            'host' => env('REDIS_HOST') ?: '127.0.0.1',
+            'username' => env('REDIS_USERNAME') ?: null,
+            'password' => env('REDIS_PASSWORD') ?: null,
+            'port' => (int) (env('REDIS_PORT') ?: 6379),
             'database' => env('REDIS_DB', '0'),
         ],
 
         'cache' => [
             'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
+            'host' => env('REDIS_HOST') ?: '127.0.0.1',
+            'username' => env('REDIS_USERNAME') ?: null,
+            'password' => env('REDIS_PASSWORD') ?: null,
+            'port' => (int) (env('REDIS_PORT') ?: 6379),
             'database' => env('REDIS_CACHE_DB', '1'),
         ],
 

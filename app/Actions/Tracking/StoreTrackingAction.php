@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Actions\Tracking;
 
 use App\Actions\MapConnections\CreateMapConnectionAction;
+use App\Actions\MapConnections\UpdateMapConnectionAction;
+use App\Actions\MapSolarsystem\LockMapSolarsystemsAction;
 use App\Actions\MapSolarsystem\StoreMapSolarsystemAction;
 use App\Actions\MapSolarsystem\UpdateMapSolarsystemAction;
 use App\Actions\Signatures\UpdateSignatureAction;
+use App\Data\MapConnectionData;
 use App\Data\SignatureData;
 use App\Data\TrackingData;
 use App\Enums\LifetimeStatus;
@@ -44,6 +47,8 @@ final readonly class StoreTrackingAction
         private StoreMapSolarsystemAction $storeMapSolarsystemAction,
         private UpdateMapSolarsystemAction $updateMapSolarsystemAction,
         private CreateMapConnectionAction $storeMapConnectionRequest,
+        private UpdateMapConnectionAction $updateMapConnectionAction,
+        private LockMapSolarsystemsAction $lockMapSolarsystemsAction,
         private UpdateSignatureAction $updateSignatureAction,
         #[Config('map.max_size.x')]
         private int $max_x,
@@ -54,38 +59,50 @@ final readonly class StoreTrackingAction
     ) {}
 
     /**
+     * Creates the connection from the origin to the target system, or updates
+     * the existing one. Returns null when nothing was created (stargate pair);
+     * `wasRecentlyCreated` tells a new connection from an existing one.
+     *
      * @throws Throwable
      */
-    public function handle(TrackingData $data): void
+    public function handle(TrackingData $data): ?MapConnection
     {
-        DB::transaction(function () use ($data): void {
-            $origin = MapSolarsystem::query()
-                ->lockForUpdate()
-                ->findOrFail($data->from_map_solarsystem_id);
+        return DB::transaction(function () use ($data): ?MapConnection {
+            /* Serializes every tracking request adding this target system,
+            * so it is never added twice to a map.
+            */
             $to_solarsystem = Solarsystem::query()
                 ->lockForUpdate()
                 ->findOrFail($data->to_solarsystem_id);
+            $origin = MapSolarsystem::query()->findOrFail($data->from_map_solarsystem_id);
+
+            /* If the target system is already on the map (reached here via a
+            * different connection), we link to that existing map solarsystem
+            * instead of adding a duplicate.
+            */
+            $target_map_solarsystem = $this->getMapSolarsystemOnMap($origin->map, $to_solarsystem);
+
+            $this->lockMapSolarsystemsAction->handle($origin->id, $target_map_solarsystem?->id);
 
             /* If a connection between the origin and the target already
-            * exists, we do not create a duplicate. We just update the
-            * signature if one was provided.
+            * exists, we do not create a duplicate. We just apply the
+            * fields that were provided.
             */
-            if ($this->updateExistingConnection($origin, $to_solarsystem, $data)) {
-                return;
+            $connection = $this->findExistingConnection($origin, $target_map_solarsystem);
+
+            if ($connection instanceof MapConnection) {
+                $this->updateExistingConnection($connection, $target_map_solarsystem, $data);
+
+                return $connection;
             }
 
             if ($this->stargatePairDetector->isStargatePair($origin->solarsystem, $to_solarsystem)) {
-                return;
+                return null;
             }
 
             $ship_size = $this->connectionClassifier->getSize($origin->solarsystem, $to_solarsystem);
 
-            /* If the target system is already on the map (reached here via a
-            * different connection), we link to that existing map solarsystem
-            * instead of adding a duplicate. Otherwise we add it to the map.
-            */
-            $target_map_solarsystem = $this->getMapSolarsystemOnMap($origin->map, $to_solarsystem)
-                ?? $this->addSolarsystemToMap($origin, $to_solarsystem);
+            $target_map_solarsystem ??= $this->addSolarsystemToMap($origin, $to_solarsystem);
 
             /* The alias goes through the update action so the broadcast payload
              * carries it — a raw update() here left other viewers (and the
@@ -123,6 +140,7 @@ final readonly class StoreTrackingAction
                     ->update($signature_update);
             }
 
+            return $connection;
         }, 10);
     }
 
@@ -235,43 +253,64 @@ final readonly class StoreTrackingAction
     }
 
     /**
-     * @throws Throwable
+     * A locking read, so it sees connections committed after this
+     * transaction's snapshot was taken.
      */
+    private function findExistingConnection(MapSolarsystem $origin, ?MapSolarsystem $target): ?MapConnection
+    {
+        if (! $target instanceof MapSolarsystem) {
+            return null;
+        }
+
+        return MapConnection::query()
+            ->connectsMapSolarsystems($origin->id, $target->id)
+            ->lockForUpdate()
+            ->first();
+    }
+
     /**
-     * Updates the signature of an existing connection between the origin and
-     * target system. Returns true if such a connection exists (and was handled),
-     * false otherwise.
+     * Applies every provided field to an existing connection and leaves the
+     * null ones untouched: null means "don't change", never "clear". Mass and
+     * lifetime keep the worst of the value sent and the connection's, so a
+     * prompt left open never resets a connection that got worse meanwhile.
      *
      * @throws Throwable
      */
-    private function updateExistingConnection(
-        MapSolarsystem $origin,
-        Solarsystem $to_solarsystem,
-        TrackingData $data,
-    ): bool {
-
-        $connection = MapConnection::query()->connectsSolarsystemsInMap($origin->map_id, $origin->solarsystem_id, $to_solarsystem->id)
-            ->first();
-
-        if (! $connection instanceof MapConnection) {
-            return false;
-        }
-
+    private function updateExistingConnection(MapConnection $connection, MapSolarsystem $target, TrackingData $data): void
+    {
         $signature = Signature::query()->find($data->signature_id);
 
-        if (! $signature instanceof Signature) {
-            return true;
+        if ($signature instanceof Signature) {
+            $update_payload = ['map_connection_id' => $connection->id];
+
+            if ($signature->signature_category_id === null) {
+                $update_payload['signature_category_id'] = $this->getWormholeCategoryId();
+            }
+
+            $this->updateSignatureAction->handle($signature, SignatureData::from($update_payload));
+            $connection->refresh();
         }
 
-        $update_payload = ['map_connection_id' => $connection->id];
+        $connection_update = array_filter([
+            'mass_status' => $data->mass_status instanceof MassStatus
+                ? MassStatus::worst($data->mass_status, $connection->mass_status ?? MassStatus::Unknown)
+                : null,
+            'lifetime' => $data->lifetime instanceof LifetimeStatus
+                ? LifetimeStatus::worst($data->lifetime, $connection->lifetime)
+                : null,
+            'ship_size' => $data->ship_size,
+        ]);
 
-        if ($signature->signature_category_id === null) {
-            $update_payload['signature_category_id'] = $this->getWormholeCategoryId();
+        if ($connection_update !== []) {
+            /* Goes through the update action so linked signatures follow the
+            * connection, and an identified wormhole type keeps its ship size.
+            */
+            $this->updateMapConnectionAction->handle($connection, MapConnectionData::from($connection_update));
         }
 
-        $this->updateSignatureAction->handle($signature, SignatureData::from($update_payload));
-
-        return true;
+        if (filled($data->alias)) {
+            $this->updateMapSolarsystemAction->handle($target, ['alias' => $data->alias]);
+        }
     }
 
     private function getWormholeCategoryId(): ?int
