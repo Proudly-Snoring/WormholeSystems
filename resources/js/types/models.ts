@@ -22,7 +22,7 @@ export type TMassStatus = 'fresh' | 'reduced' | 'critical';
 
 export type TRoutePreference = 'shorter' | 'safer' | 'less_secure';
 
-export type TLifetimeStatus = 'healthy' | 'eol' | 'critical';
+export type TLifetimeStatus = 'healthy' | 'eol' | 'critical' | 'expired';
 
 export type TShipSize = 'frigate' | 'medium' | 'large' | 'xlarge';
 
@@ -284,7 +284,7 @@ export type TMapUserSetting = {
     route_use_wormholes: boolean;
     route_preference: TRoutePreference;
     security_penalty: number;
-    killmail_filter: 'all' | 'jspace' | 'kspace';
+    killmail_filter: 'all' | 'jspace' | 'kspace' | 'selected_system';
     introduction_confirmed_at: string | null;
     prompt_for_signature_enabled: boolean;
     preselect_signature_enabled: boolean;

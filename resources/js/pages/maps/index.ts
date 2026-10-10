@@ -116,7 +116,7 @@ export type TMap = {
     name: string;
     slug: string;
     home_solarsystem_id: number | null;
-    rally_solarsystem_id: number | null;
+    rally_solarsystem_ids: number[];
     layout: 'manual' | 'tree';
     allow_layout_override: boolean;
     constant_width_enabled: boolean;
@@ -267,6 +267,7 @@ export type TTailoredSignature = {
 export type TSelectedMapSolarsystemBase = Omit<TMapSolarsystemBase, 'signatures'> & {
     notes: string | null;
     signatures: TSignature[];
+    signatures_pasted_at: string | null;
     audits: TAudit[];
     map_connections: TMapConnection[];
 };

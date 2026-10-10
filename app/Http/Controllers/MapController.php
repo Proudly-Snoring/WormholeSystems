@@ -83,7 +83,7 @@ final class MapController extends Controller
             ->with(new MapTrackingFeature($map, $request->integer('origin_solarsystem_id') ?: null, $request->integer('target_solarsystem_id') ?: null))
             ->with(new MapCharactersFeature($map, $canViewCharacters))
             ->with(new EveScoutConnectionsFeature($this->eve_scout_service))
-            ->with(new MapKillmailsFeature($map, $settings->killmail_filter ?? KillmailFilter::All, $hiddenCards))
+            ->with(new MapKillmailsFeature($map, $settings->killmail_filter ?? KillmailFilter::All, $selected_map_solarsystem?->solarsystem_id, $hiddenCards))
             ->with(new ShipHistoryFeature($user, $canViewCharacters, $hiddenCards))
             ->with(new MapNavigationFeature($map, $hiddenCards))
             ->with(new ThreatAnalysisFeature($selected_map_solarsystem, $hiddenCards))
@@ -107,8 +107,7 @@ final class MapController extends Controller
 
         return Inertia::render('maps/ShowAllMaps', [
             'maps' => Map::query()
-                ->whereHas('mapAccessors', function (Builder $builder) use ($accessibleIds): void {
-                    assert($builder instanceof MapAccessBuilder);
+                ->whereHas('mapAccessors', function (MapAccessBuilder $builder) use ($accessibleIds): void {
                     $builder->notExpired()->whereIn('accessible_id', $accessibleIds);
                 })
                 ->when($search->isNotEmpty(), fn (Builder $query) => $query->whereLike('name', sprintf('%%%s%%', $search)))
