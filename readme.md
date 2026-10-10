@@ -1,41 +1,44 @@
 # WormholeSystems
 
-[![tests](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/tests.yml/badge.svg)](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/tests.yml)
-[![linter](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/lint.yml/badge.svg)](https://github.com/WormholeSystems/WormholeSystems/actions/workflows/lint.yml)
-[![License](https://img.shields.io/github/license/WormholeSystems/WormholeSystems)](LICENSE)
-[![Stack](https://img.shields.io/badge/self--host-wormholesystems--containers-blue)](https://github.com/WormholeSystems/wormholesystems-containers)
-[![wsctl](https://img.shields.io/github/v/release/WormholeSystems/wormholesystems-cli?label=wsctl)](https://github.com/WormholeSystems/wormholesystems-cli)
+[![tests](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/tests.yml/badge.svg)](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/tests.yml)
+[![linter](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/lint.yml/badge.svg)](https://github.com/Proudly-Snoring//WormholeSystems/actions/workflows/lint.yml)
+[![license](https://img.shields.io/github/license/Proudly-Snoring/WormholeSystems)](LICENSE)
 
-Wormhole mapping and tracking for EVE Online — live at [wormhole.systems](https://wormhole.systems). Real-time chain maps, signatures, character tracking and killmail intel, built with Laravel 12, Inertia.js, Vue 3 and Tailwind CSS.
+Wormhole mapping and tracking for EVE Online — live at [wormhole.systems](https://wormhole.systems).
+Real-time chain maps, signatures, character tracking and killmail intel, built with Laravel 12, Inertia.js, Vue 3 and Tailwind CSS.
 
-## Self-hosting
+## Acknowledgement
 
-To run your own instance you don't need this repository directly — use the [container stack](https://github.com/WormholeSystems/wormholesystems-containers) with its interactive setup wizard:
+This repository is a fork of [WormholeSystems/WormholeSystems](https://github.com/WormholeSystems/WormholeSystems) made by [Nicolas Kion ](https://github.com/NicolasKion) and adapted for Proudly Snoring usage.
 
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://install.wormhole.systems | sh
-```
+We try to maintain compatibility with the base repo and merge our improvement there, but there are subtle differences here and there.
 
-The rest of this README is about developing the application itself.
+## Deployment
+
+[`deploy/`](deploy/) is Proudly Snoring's own deployment stack for **mapper.prsn.online** — a Dockerfile plus a compose file holding the application, an optional database, and an optional Caddy reverse proxy that terminates TLS. Drop either optional profile to use a database or a proxy you already run. See [`deploy/readme.md`](deploy/readme.md).
+
+Every [GitHub release](https://github.com/Proudly-Snoring/WormholeSystems/releases) publishes a versioned image built from it to `ghcr.io/proudly-snoring/wormholesystems`, tagged with the release version, plus `latest` (unless the release is marked as a prerelease). See [contributing.md](contributing.md#release-process) for how the release workflow itself works.
+
+> [!IMPORTANT]
+> **That image is built for `mapper.prsn.online` and cannot serve another domain.** The websocket host, port, scheme and app key the browser uses are inlined into the JavaScript bundle by Vite at build time, so they are fixed once the image exists — no amount of `.env` changes moves them.
+>
+> To host this yourself, build your own image with your own domain in the build args (they are declared in [`.github/workflows/publish.yml`](.github/workflows/publish.yml)).
+> `deploy/` is a working example of how the pieces fit together, but it is not written as a general-purpose template: it hardcodes this instance's hostname and callbacks.
 
 ## Development setup
 
 **Requirements:** PHP 8.4+, Composer, MySQL/MariaDB, Redis, Node.js + npm. We strongly recommend [Laravel Herd](https://herd.laravel.com/), which provides all of it pre-configured with automatic HTTPS.
 
 ```bash
-git clone https://github.com/WormholeSystems/WormholeSystems.git
-cd WormholeSystems
-
 cp .env.example .env
 composer install
 npm install
 php artisan key:generate
 php artisan migrate
 
-# EVE static data (~500MB download; seeding may need more memory)
+# EVE static data (~500MB download)
 php artisan sde:download
-php artisan sde:prepare
-php -d memory_limit=2G artisan db:seed
+php artisan db:seed
 ```
 
 In Herd, make sure **MySQL** and **Redis** are running and create a database named `wormholesystems`. Herd serves the site at `https://wormholesystems.test` (derived from the folder name).
@@ -104,7 +107,6 @@ Channel alerts can optionally use Discord's native role picker. The selected rol
 Map managers configure alert rules, bot-managed alert oversight, delivery destinations, and role mentions on the map's **Discord settings** page at `/maps/{map}/settings/discord`. Delivery destinations may use Discord channel webhook URLs; these webhooks remain one delivery type within the broader Discord configuration.
 
 Configure the application credentials in `.env`:
-
 ```dotenv
 DISCORD_APPLICATION_ID=           # Application ID from General Information
 DISCORD_CLIENT_ID=                # Usually the same value as the Application ID
@@ -117,7 +119,6 @@ DISCORD_TEST_GUILD_ID=
 ```
 
 Register the commands globally for production:
-
 ```bash
 php artisan discord:register-commands --global
 ```
@@ -125,7 +126,6 @@ php artisan discord:register-commands --global
 For development, set `DISCORD_TEST_GUILD_ID` and omit `--global`. Guild commands update immediately, while global command changes can take time to propagate.
 
 The bot is a long-running CLI process and must run separately from queue workers, Reverb and Octane:
-
 ```bash
 php artisan discord:listen
 ```
@@ -165,12 +165,7 @@ php artisan discord:listen
 
 ## Contributing
 
-Fork, branch, make your changes, then `php artisan test` and `vendor/bin/pint` before opening a pull request — CI runs both.
-
-## Related repositories
-
-- [wormholesystems-containers](https://github.com/WormholeSystems/wormholesystems-containers) — production docker stack
-- [wormholesystems-cli](https://github.com/WormholeSystems/wormholesystems-cli) — `wsctl` setup and management tool
+See [contributing.md](contributing.md).
 
 ## License
 

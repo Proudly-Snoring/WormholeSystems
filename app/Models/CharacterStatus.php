@@ -15,9 +15,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property int $id
  * @property int $character_id
- * @property int $solarsystem_id
- * @property int $station_id
- * @property int $structure_id
+ * @property int|null $solarsystem_id
+ * @property int|null $station_id
+ * @property int|null $structure_id
  * @property string $ship_name
  * @property int $ship_type_id
  * @property int $ship_item_id

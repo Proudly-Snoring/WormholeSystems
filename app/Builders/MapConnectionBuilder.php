@@ -55,6 +55,21 @@ final class MapConnectionBuilder extends Builder
             ]);
     }
 
+    public function connectsMapSolarsystems(int $first_map_solarsystem_id, int $second_map_solarsystem_id): self
+    {
+        return $this->where(
+            fn (Builder $query) => $query
+                ->where(fn (Builder $query) => $query
+                    ->where('from_map_solarsystem_id', $first_map_solarsystem_id)
+                    ->where('to_map_solarsystem_id', $second_map_solarsystem_id)
+                )
+                ->orWhere(fn (Builder $query) => $query
+                    ->where('from_map_solarsystem_id', $second_map_solarsystem_id)
+                    ->where('to_map_solarsystem_id', $first_map_solarsystem_id)
+                )
+        );
+    }
+
     public function connectsSolarsystemsInMap(int $map_id, int $first_solarsystem_id, int $second_solarsystem_id): self
     {
         return $this->whereRelation('map', 'id', $map_id)

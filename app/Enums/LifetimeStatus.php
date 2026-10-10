@@ -11,6 +11,11 @@ enum LifetimeStatus: string
     case Critical = 'critical'; // <1 hour remaining
     case Expired = 'expired'; // reliable lifetime over, closure imminent
 
+    public static function worst(self $first, self $second): self
+    {
+        return $second->severity() > $first->severity() ? $second : $first;
+    }
+
     public function severity(): int
     {
         return match ($this) {

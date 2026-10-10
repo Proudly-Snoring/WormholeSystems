@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\MapConnections;
 
-use App\Models\MapConnection;
 use App\Models\MapConnectionJump;
 
 /**
@@ -21,8 +20,6 @@ final readonly class DeleteMapConnectionJumpAction
 
         $jump->delete();
 
-        if ($connection instanceof MapConnection) {
-            $this->broadcastMapConnection->handle($connection);
-        }
+        $this->broadcastMapConnection->handle($connection);
     }
 }

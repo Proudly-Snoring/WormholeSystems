@@ -14,12 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * A ship jump through a map connection, observed via character location tracking.
  *
- * Rows with a null map_connection_id are pending: the jump was seen before the
- * connection existed on the map and is claimed once the connection is created.
- *
  * @property int $id
  * @property int $map_id
- * @property int|null $map_connection_id
+ * @property int $map_connection_id
  * @property int|null $character_id
  * @property int $from_solarsystem_id
  * @property int $to_solarsystem_id
@@ -30,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|string $created_at
  * @property CarbonImmutable|string $updated_at
  * @property-read Map $map
- * @property-read MapConnection|null $mapConnection
+ * @property-read MapConnection $mapConnection
  * @property-read Character|null $character
  * @property-read Type|null $shipType
  */

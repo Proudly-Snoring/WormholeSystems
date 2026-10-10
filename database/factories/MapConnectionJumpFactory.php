@@ -34,9 +34,4 @@ final class MapConnectionJumpFactory extends Factory
             'mass' => $this->faker->numberBetween(1_000_000, 300_000_000),
         ];
     }
-
-    public function pending(): static
-    {
-        return $this->state(fn (): array => ['map_connection_id' => null]);
-    }
 }

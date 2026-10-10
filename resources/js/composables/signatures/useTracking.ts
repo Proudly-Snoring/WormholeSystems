@@ -1,9 +1,8 @@
 import { useActiveMapCharacter } from '@/composables/useActiveMapCharacter';
-import { useMapIgnoredSystems } from '@/composables/useMapIgnoredSystems';
 import { useMapUserSettings } from '@/composables/useMapUserSettings';
 import { useShowMap } from '@/composables/useShowMap';
-import { useStaticData } from '@/composables/useStaticData';
 import { useTrackingSystems } from '@/composables/useTrackingSystems';
+import { useCharacterJumpedEvents } from '@/composables/useUserEvents';
 import { aliasTargetKind, suggestAlias } from '@/lib/alias';
 import { buildSignatureBookmark } from '@/lib/bookmark';
 import { groupSignatureOptions } from '@/lib/signatureCompatibility';
@@ -12,15 +11,13 @@ import { createTracking, updateMapUserSettings, useMapSolarsystems } from '@/map
 import { show } from '@/routes/maps';
 import { TLifetimeStatus, TMassStatus, TShipSize, TSignature } from '@/types/models';
 import { router } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
 
 export function useTracking() {
     const character = useActiveMapCharacter();
     const map_user_settings = useMapUserSettings();
-    const { isIgnored } = useMapIgnoredSystems();
     const page = useShowMap();
-    const { staticData } = useStaticData();
     const { map_solarsystems } = useMapSolarsystems();
 
     const is_tracking = computed(() => map_user_settings.value?.is_tracking && character.value && map_user_settings.value?.tracking_allowed);
@@ -30,21 +27,12 @@ export function useTracking() {
     const { origin_map_solarsystem, target_solarsystem, update } = useTrackingSystems();
 
     const show_signature_modal = ref(false);
+    const jumped_connection_id = ref<number | null>(null);
     // All of the origin's signatures; the dialog demotes the ones that cannot
     // lead to the target instead of hiding them.
     const signatures = computed(() => origin_map_solarsystem.value?.signatures?.toSorted(sortSignatures));
     const possible_signatures = computed(() => groupSignatureOptions(signatures.value ?? [], target_solarsystem.value?.class).likely);
     const existing_map_solarsystem = computed(() => map_solarsystems.value.find((s) => s.solarsystem_id === target_solarsystem.value?.id));
-    const existing_connection = computed(() => {
-        if (!existing_map_solarsystem.value) return null;
-        return (
-            signatures.value?.find(
-                (s) =>
-                    s.map_connection?.to_map_solarsystem_id === existing_map_solarsystem.value?.id ||
-                    s.map_connection?.from_map_solarsystem_id === existing_map_solarsystem.value?.id,
-            ) || null
-        );
-    });
 
     const known_aliases = computed(() => map_solarsystems.value.map((s) => s.alias).filter((alias): alias is string => Boolean(alias)));
 
@@ -74,20 +62,16 @@ export function useTracking() {
         });
     });
 
-    watch(
-        () => [character.value?.id, character.value?.status?.solarsystem_id] as const,
-        ([new_character_id, new_solarsystem_id], [old_character_id, old_solarsystem_id]) => {
-            if (!map_user_settings.value.is_tracking) return;
-            if (!new_solarsystem_id || !old_solarsystem_id) return;
-            if (new_solarsystem_id === old_solarsystem_id) return;
-            // Only a single character moving between systems is a real jump. When
-            // the active character is switched the watched system id also changes,
-            // but that must not create a connection between the two characters' systems.
-            if (new_character_id !== old_character_id) return;
+    // The backend detects jumps and creates the connection; the tab only follows
+    // the pilot and offers to link a signature. Alts are mapped by the backend
+    // too, but the UI only reacts to the active character.
+    useCharacterJumpedEvents((event) => {
+        if (event.map_id !== page.props.map.id) return;
+        if (event.character_id !== character.value?.id) return;
 
-            handleSolarsystemJump(old_solarsystem_id, new_solarsystem_id);
-        },
-    );
+        jumped_connection_id.value = event.map_connection_id;
+        update(event.from_solarsystem_id, event.to_solarsystem_id, () => performJump(event.to_solarsystem_id));
+    });
 
     // Follow the pilot: select the system the character jumped into, so the
     // signature panel and details follow it.
@@ -108,42 +92,30 @@ export function useTracking() {
         });
     }
 
-    function handleSolarsystemJump(old_solarsystem_id: number | null, new_solarsystem_id: number) {
-        if (isIgnored(new_solarsystem_id)) return;
-        const old_map_solarsystem = map_solarsystems.value.find((s) => s.solarsystem_id === old_solarsystem_id);
-        if (!old_map_solarsystem) return;
-        if (old_map_solarsystem.solarsystem_id === new_solarsystem_id) return;
-        update(old_map_solarsystem.solarsystem_id, new_solarsystem_id, performJump);
-    }
-
-    function isGateConnected(origin_solarsystem_id: number | null | undefined, target_solarsystem_id: number | null | undefined): boolean {
-        if (!origin_solarsystem_id || !target_solarsystem_id) return false;
-        return staticData.value?.connections[origin_solarsystem_id]?.includes(target_solarsystem_id) ?? false;
-    }
-
     function sortSignatures(a: TSignature, b: TSignature) {
         if (!a.signature_id || !b.signature_id) return 0;
         return a.signature_id.localeCompare(b.signature_id);
     }
 
-    function performJump() {
-        const target_solarsystem_id = target_solarsystem.value!.id;
+    function performJump(target_solarsystem_id: number) {
+        // Whoever created the connection (this character, an alt or a
+        // fleetmate), the prompt is offered as long as no signature is linked.
+        const signature_linked = signatures.value?.some((s) => s.map_connection_id === jumped_connection_id.value) ?? false;
 
-        // Already connected: the system is on the map, nothing to wait for.
-        if (existing_connection.value?.map_connection_id) {
+        if (signature_linked || !possible_signatures.value.length || !map_user_settings.value.prompt_for_signature_enabled) {
             followInto(target_solarsystem_id);
 
             return;
         }
 
-        const gate_connected = isGateConnected(origin_map_solarsystem.value?.solarsystem_id, target_solarsystem.value?.id);
-        if (gate_connected || !possible_signatures.value.length || !map_user_settings.value.prompt_for_signature_enabled) {
-            return createTracking(origin_map_solarsystem.value!.id, target_solarsystem_id, {}, () => followInto(target_solarsystem_id));
-        }
-
-        // The dialog defers the tracking request until the scout picks a
-        // signature, so following waits for that path instead.
+        // Following waits for the prompt to close, so the selection is not
+        // reverted by the tracking request it fires.
         show_signature_modal.value = true;
+    }
+
+    function handleDismissSignature() {
+        show_signature_modal.value = false;
+        if (target_solarsystem.value) followInto(target_solarsystem.value.id);
     }
 
     function handleToggle() {
@@ -231,6 +203,7 @@ export function useTracking() {
         signatures,
         show_signature_modal,
         handleSelectSignature,
+        handleDismissSignature,
         origin_map_solarsystem,
         target_solarsystem,
         existing_map_solarsystem,

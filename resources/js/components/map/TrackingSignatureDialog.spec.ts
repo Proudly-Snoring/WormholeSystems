@@ -109,6 +109,26 @@ describe('TrackingSignatureDialog', () => {
         expect(lastSelection(wrapper)).toMatchObject({ signatureId: null, lifetime: 'healthy', massStatus: 'fresh', shipSize: null });
     });
 
+    it('dismisses without a selection when the prompt is disabled', async () => {
+        const wrapper = await mountOpenDialog();
+
+        const disable = [...document.body.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Disable')!;
+        disable.click();
+
+        expect(wrapper.emitted('dismiss')).toHaveLength(1);
+        expect(wrapper.emitted('selectSignature')).toBeUndefined();
+    });
+
+    it('dismisses without a selection when closed with Escape', async () => {
+        const wrapper = await mountOpenDialog();
+
+        document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await wrapper.vm.$nextTick();
+
+        expect(wrapper.emitted('dismiss')).toHaveLength(1);
+        expect(wrapper.emitted('selectSignature')).toBeUndefined();
+    });
+
     it('preselects the first likely signature and adopts its values when enabled', async () => {
         const wrapper = await mountOpenDialog({ preselectFirstSignature: true });
 

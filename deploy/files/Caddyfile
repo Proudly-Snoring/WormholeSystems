@@ -1,0 +1,43 @@
+# Caddy configuration for the optional edge proxy (cf. deploy/docker-compose.yml).
+#
+# This is the only part of the stack that faces the internet.
+# - It terminates TLS, obtains and renews the Let's Encrypt certificate for SERVER_NAME.
+# - It routes to the two backends over the internal compose network.
+#
+# Replacing this proxy with a generic one that also serves other applications is supported.
+# - It has to reproduce both routes below (the webapp and the reverb websocket server).
+# - Don't forget to send X-Forwarded-For/-Proto/-Host, which is how Laravel learns the original
+#   request was HTTPS (cf. the trusted ranges in bootstrap/app.php).
+#
+# https://caddyserver.com/docs/caddyfile
+
+{
+	{$CADDY_GLOBAL_OPTIONS}
+}
+
+# `$SERVER_NAME` has no inline default on purpose:
+# - A bare port (":80") keeps Caddy on plain HTTP and skips ACME entirely (this is how docker-compose.local.yml works).
+# - A hostname switches it to ports 80/443 with a certificate.
+{$SERVER_NAME} {
+	# No `br`: the brotli encoder is not compiled into the official Caddy image.
+	# Adding it back means building a custom Caddy with xcaddy, which is not worth a third codec:
+	# zstd covers modern clients, gzip covers the rest.
+	encode zstd gzip
+
+	# Access logs live here and only here: this is the only layer that sees the real client address.
+	# The application containers deliberately log none (cf. deploy/files/nginx.conf).
+	log
+
+	# Route websocket calls to the reverb service.
+	# Explicit `handle` blocks rather than a matched `reverse_proxy`, so the routing does not
+	# depend on Caddy's implicit ordering of directives.
+	# NB: Reverb server-side HTTP API lives at /apps/<id>/events (plural), which this does not expose.
+	handle /app/* {
+		reverse_proxy reverb:8080
+	}
+
+	# The default block: forward the connection to nginx inside the app service
+	handle {
+		reverse_proxy app:8080
+	}
+}
