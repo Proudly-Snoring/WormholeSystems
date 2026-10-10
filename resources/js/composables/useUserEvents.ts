@@ -1,7 +1,7 @@
 import { useOnClient } from '@/composables/useOnClient';
 import useUser from '@/composables/useUser';
 import { getUserChannelName } from '@/const/channels';
-import { CharacterJumpedEvent, UserCharacterStatusUpdatedEvent } from '@/const/events';
+import { CharacterJumpedEvent, MapUserRouteSolarsystemsUpdatedEvent, UserCharacterStatusUpdatedEvent } from '@/const/events';
 import { router } from '@inertiajs/vue3';
 import { useEcho } from '@laravel/echo-vue';
 
@@ -32,6 +32,19 @@ export function useUserEvents() {
  */
 export function useCharacterJumpedEvents(callback: (event: TCharacterJumpedEvent) => void) {
     useUserChannel(CharacterJumpedEvent, callback);
+}
+
+/** A user's personal watchlist changed on a map, from another of their tabs. */
+export type TMapUserRouteSolarsystemsUpdatedEvent = {
+    user_id: number;
+    map_id: number;
+};
+
+/**
+ * Run the callback whenever the user's personal watchlist changes, on any map.
+ */
+export function useMapUserRouteSolarsystemsEvents(callback: (event: TMapUserRouteSolarsystemsUpdatedEvent) => void) {
+    useUserChannel(MapUserRouteSolarsystemsUpdatedEvent, callback);
 }
 
 function useUserChannel<T>(event: string, callback: (payload: T) => void) {
