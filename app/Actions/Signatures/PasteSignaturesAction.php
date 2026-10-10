@@ -112,6 +112,8 @@ final readonly class PasteSignaturesAction
                 }
             });
 
+            $map_solarsystem->update(['signatures_pasted_at' => now()]);
+
             // A paste of N signatures emits a single counts event for the system.
             if ($signatures->isNotEmpty()) {
                 $this->mapBroadcaster->signaturesChanged($map_solarsystem);

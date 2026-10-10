@@ -89,6 +89,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('revoke-share-token', [MapSettingsController::class, 'revokeShareToken'])->name('revoke-share-token');
         Route::post('home-system', [HomeSystemController::class, 'store'])->name('home-system');
         Route::post('rally-point', [RallyPointController::class, 'store'])->name('rally-point');
+        Route::delete('rally-point', [RallyPointController::class, 'destroy'])->name('rally-point.destroy');
         Route::get('preferences', [MapPreferencesController::class, 'show'])->name('preferences.show');
         Route::get('access', [MapAccessController::class, 'show'])->name('access.show');
         Route::post('access', [MapAccessController::class, 'store'])->name('access.store');

@@ -8,7 +8,7 @@ return [
         'y' => 2000,
     ],
     'grid_size' => 20,
-
+    'max_rally_points' => 2,
     'tracking' => [
         /*
          * Cache store holding the location continuity keys. It must be shared
