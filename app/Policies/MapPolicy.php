@@ -71,7 +71,7 @@ final class MapPolicy
 
         return $map->getUserPermission($user) instanceof Permission;
     }
- 
+
     /**
      * Creating a map is open to every authenticated user unless the instance
      * names the affiliations allowed to do so. Same shape as the login
