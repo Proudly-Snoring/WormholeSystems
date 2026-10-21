@@ -14,7 +14,7 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.4",
+        "php": "^8.4.27",
         "ext-bz2": "*",
         "ext-pcntl": "*",
         "ext-pdo": "*",
