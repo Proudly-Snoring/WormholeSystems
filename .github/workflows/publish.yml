@@ -103,6 +103,9 @@ jobs:
           outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.slug }}
           cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
+          # The apt stages are never served from cache, so every release ships Debian's current security updates.
+          no-cache-filters: build,runtime
+          pull: true
       - name: Export digest
         run: |
           mkdir -p /tmp/digests

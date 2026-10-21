@@ -10,6 +10,8 @@ WORKDIR /app
 
 COPY composer.json composer.lock ./
 
+# This image's PHP is not the shipped one and lacks pcntl, so only that requirement is waived here.
+# The build stage below checks the full set against the PHP that actually ships.
 RUN composer install \
     --no-dev \
     --no-interaction \
@@ -17,7 +19,7 @@ RUN composer install \
     --no-progress \
     --no-scripts \
     --prefer-dist \
-    --ignore-platform-reqs
+    --ignore-platform-req=ext-pcntl
 
 # ---------------------------------------------------------------------------
 # Stage 2: frontend build
@@ -74,9 +76,12 @@ COPY . .
 
 # The vendor stage runs before the application source exists, so optimising the autoloader there would only ever produce an empty class map.
 # Building it here, with app/ and database/ in place, is what actually optimises the shipped image.
+# Platform requirements are enforced twice against Debian's PHP, the same packages the runtime stage installs:
+# - check-platform-reqs fails the build on a missing extension or a too old PHP,
+# - dump-autoload generates vendor/composer/platform_check.php, which refuses to serve on a too old PHP at runtime.
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer check-platform-reqs --lock --no-dev
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload \
-    --ignore-platform-reqs \
     --no-dev \
     --no-interaction \
     --no-scripts \
