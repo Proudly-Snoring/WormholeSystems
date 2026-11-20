@@ -10,7 +10,9 @@ WORKDIR /app
 
 COPY composer.json composer.lock ./
 
-# This image's PHP is not the shipped one and lacks pcntl, so only that requirement is waived here.
+# This image's PHP is not the shipped one, so two requirements are waived here:
+# - pcntl, which it lacks,
+# - PHP upper bounds (`php+`), since it tracks the latest PHP (8.6+) while some locked packages cap at 8.5.
 # The build stage below checks the full set against the PHP that actually ships.
 RUN composer install \
     --no-dev \
@@ -19,7 +21,8 @@ RUN composer install \
     --no-progress \
     --no-scripts \
     --prefer-dist \
-    --ignore-platform-req=ext-pcntl
+    --ignore-platform-req=ext-pcntl \
+    --ignore-platform-req=php+
 
 # ---------------------------------------------------------------------------
 # Stage 2: frontend build
