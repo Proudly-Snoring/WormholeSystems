@@ -301,7 +301,7 @@
             "category_name": "Wormhole",
             "target_class": "12",
             "extra": "Thera",
-            "spawn_areas": ["2", "3"]
+            "spawn_areas": ["2", "3", "5"]
         },
         {
             "id": 258,
