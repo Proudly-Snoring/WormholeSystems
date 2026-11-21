@@ -63,6 +63,14 @@ it('spot checks a known wormhole type resolves correctly', function (): void {
         ->and($type->category->code->value)->toBe('wormhole');
 });
 
+it('lets the F135 Thera wormhole spawn in C5 systems', function (): void {
+    $type = SignatureType::query()
+        ->where('signature', WormholeSignature::F135)
+        ->firstOrFail();
+
+    expect($type->spawn_areas)->toContain(SolarsystemClass::C5);
+});
+
 it('keeps the source file internally consistent', function (): void {
     $data = signatureSourceData();
 

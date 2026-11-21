@@ -832,7 +832,8 @@
         "dest": "thera",
         "src": [
             "c2",
-            "c3"
+            "c3",
+            "c5"
         ],
         "static": false,
         "max_mass_per_jump": 375000000,
