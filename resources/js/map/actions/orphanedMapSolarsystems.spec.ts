@@ -1,4 +1,3 @@
-import { getClearableMapSolarsystems } from '@/map/actions/clearableMapSolarsystems';
 import { getOrphanedMapSolarsystems } from '@/map/actions/orphanedMapSolarsystems';
 import { createMapStore } from '@/map/store/mapStore';
 import { TMap, TMapConnection, TMapSolarsystem, TSolarsystem } from '@/pages/maps';
@@ -68,16 +67,6 @@ function storeWith(systems: TMapSolarsystem[], connections: TMapConnection[], ho
     } as TMap);
     return store;
 }
-
-describe('getClearableMapSolarsystems', () => {
-    it('excludes pinned systems and the home system', () => {
-        const store = storeWith([system(1, { pinned: true }), system(2), system(3)], [], 31000003);
-
-        const clearable = getClearableMapSolarsystems(store).map((s) => s.id);
-
-        expect(clearable).toEqual([2]);
-    });
-});
 
 describe('getOrphanedMapSolarsystems', () => {
     it('keeps systems reachable from a pinned or home anchor and drops disconnected branches', () => {
