@@ -1,6 +1,5 @@
 import type { MapStore } from '@/map/store/mapStore';
 import type { TMapSolarsystem } from '@/pages/maps';
-import { getClearableMapSolarsystems } from './clearableMapSolarsystems';
 
 /**
  * The systems "Clean map" removes: dead branches that are neither pinned, the
@@ -8,7 +7,7 @@ import { getClearableMapSolarsystems } from './clearableMapSolarsystems';
  * graph.
  */
 export function getOrphanedMapSolarsystems(store: MapStore): TMapSolarsystem[] {
-    const clearable = new Set(getClearableMapSolarsystems(store).map((system) => system.id));
+    const homeSolarsystemId = store.meta.value?.home_solarsystem_id ?? null;
 
     const adjacency = new Map<number, number[]>();
     for (const connection of store.connections.values()) {
@@ -17,7 +16,9 @@ export function getOrphanedMapSolarsystems(store: MapStore): TMapSolarsystem[] {
         adjacency.set(to, [...(adjacency.get(to) ?? []), from]);
     }
 
-    const queue = [...store.systems.values()].filter((system) => !clearable.has(system.id)).map((system) => system.id);
+    const queue = [...store.systems.values()]
+        .filter((system) => system.pinned || system.solarsystem_id === homeSolarsystemId)
+        .map((system) => system.id);
     const reachable = new Set(queue);
 
     while (queue.length > 0) {

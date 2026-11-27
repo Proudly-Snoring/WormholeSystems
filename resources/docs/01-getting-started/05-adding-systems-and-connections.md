@@ -24,6 +24,6 @@ The empty-background right-click menu also helps you keep things neat:
 
 - **Delete selection** — remove the systems you've selected.
 - **Organize selection** — auto-arrange selected systems, with an adjustable spacing.
-- **Clear map** — remove every unpinned system at once (pinned systems stay; see [Pinning](/documentation/organizing-your-map/pinning-and-ignore-list)).
+- **Clean map** — remove every system not connected to a pinned or home system (see [Pinning](/documentation/organizing-your-map/pinning-and-ignore-list)).
 
 These, and far more, live in the map's context menus — which is the next thing worth knowing about.

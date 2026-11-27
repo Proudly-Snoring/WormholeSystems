@@ -12,7 +12,7 @@ Here's what each menu offers.
 
 - **Add Solarsystem** — search for and place a system.
 - **Delete selection** / **Organize selection** — manage the systems you've selected.
-- **Clear map** — remove all unpinned systems.
+- **Clean map** — remove systems not connected to a pinned or home system.
 
 ## A system
 

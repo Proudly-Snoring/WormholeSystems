@@ -17,9 +17,7 @@ import { useActiveMapCharacter } from '@/composables/useActiveMapCharacter';
 import { useStaticSolarsystem } from '@/composables/useStaticSolarsystems';
 import { type TComboboxSection } from '@/lib/comboboxSections';
 import { cleanMapSolarsystems } from '@/map/actions/cleanMapSolarsystems';
-import { getClearableMapSolarsystems } from '@/map/actions/clearableMapSolarsystems';
 import { createMapSolarsystem } from '@/map/actions/createMapSolarsystem';
-import { deleteAllMapSolarsystems } from '@/map/actions/deleteAllMapSolarsystems';
 import { deleteSelectedMapSolarsystems } from '@/map/actions/deleteSelectedMapSolarsystems';
 import { organizeMapSolarsystems } from '@/map/actions/organizeMapSolarsystems';
 import { getOrphanedMapSolarsystems } from '@/map/actions/orphanedMapSolarsystems';
@@ -45,10 +43,8 @@ const store = useMapStore();
 
 const hasSelection = computed(() => getSelectedMapSolarsystems(store).length > 0);
 
-const clearable_count = computed(() => getClearableMapSolarsystems(store).length);
 const orphaned_count = computed(() => getOrphanedMapSolarsystems(store).length);
 
-const is_clearing_map = ref(false);
 const is_cleaning_map = ref(false);
 
 const search = ref('');
@@ -96,11 +92,6 @@ function handleSolarsystemSelect(solarsystem: TStaticSolarsystem) {
     adding.value = false;
 }
 
-function handleConfirmClear() {
-    deleteAllMapSolarsystems();
-    is_clearing_map.value = false;
-}
-
 function handleConfirmClean() {
     cleanMapSolarsystems();
     is_cleaning_map.value = false;
@@ -146,26 +137,7 @@ function handleConfirmClean() {
             <Eraser class="size-4" />
             Clean map
         </ContextMenuItem>
-        <ContextMenuItem @select="is_clearing_map = true" :disabled="clearable_count === 0" class="text-destructive focus:text-destructive">
-            <Trash2 class="size-4" />
-            Clear map
-        </ContextMenuItem>
     </ContextMenuContent>
-    <Dialog v-model:open="is_clearing_map">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle> Clear map</DialogTitle>
-                <DialogDescription>
-                    Are you sure you want to clear the map? This will remove {{ clearable_count }}
-                    {{ clearable_count === 1 ? 'solarsystem' : 'solarsystems' }}. Only pinned systems and the home system are kept.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="secondary" @click="is_clearing_map = false"> Cancel</Button>
-                <Button variant="destructive" @click="handleConfirmClear"> Clear map</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
     <Dialog v-model:open="is_cleaning_map">
         <DialogContent>
             <DialogHeader>
